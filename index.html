@@ -404,10 +404,19 @@
   }
   .leaflet-popup-tip { background: #22242e !important; }
 
+  /* すまほようUIはPCではかくす */
+  #mobile-settings-btn,
+  #mobile-settings-panel,
+  #mobile-overlay { display: none; }
+
   /* ========== すまほレイアウト ========== */
   @media (max-width: 768px) {
 
     body { height: 100dvh; overflow: hidden; }
+
+    /* すまほようUIをひょうじ */
+    #mobile-settings-btn { display: flex; }
+    #mobile-settings-panel { display: flex; }
 
     /* ヘッダーはかくす */
     #header { display: none; }
@@ -632,7 +641,7 @@
 
 
 <div id="header">
-  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.8</span></h1>
+  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.9</span></h1>
   <span class="sep">|</span>
   <div class="slider-wrap">
     地図の濃さ
