@@ -1,0 +1,3092 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>県境ビューワー</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    background: #2b2d36;
+    color: #dde1e7;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #header {
+    background: #22242e;
+    border-bottom: 2px solid #3a3d4a;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    z-index: 1000;
+    flex-wrap: wrap;
+  }
+
+  #header h1 {
+    font-size: 15px;
+    font-weight: bold;
+    color: #7eb8f7;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+
+  .sep { color: #3a3d4a; font-size: 18px; user-select: none; }
+
+  .tile-btn {
+    background: #2e3140;
+    border: 1px solid #4a7ebb;
+    color: #aac4e8;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tile-btn:hover { background: #4a7ebb; color: #fff; }
+  .tile-btn.active { background: #4a7ebb; color: #fff; }
+
+  .muni-toggle {
+    background: #2e3140;
+    border: 1px solid #5dab6e;
+    color: #9dd4a8;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .muni-toggle:hover { background: #5dab6e; color: #fff; }
+  .muni-toggle.active { background: #5dab6e; color: #fff; }
+
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+  }
+  .slider-wrap input[type=range] {
+    width: 80px;
+    accent-color: #4a7ebb;
+    cursor: pointer;
+  }
+
+  #status {
+    margin-left: auto;
+    font-size: 11px;
+    color: #666;
+    white-space: nowrap;
+  }
+
+  #main { display: flex; flex: 1; overflow: hidden; }
+  #map { flex: 1; height: 100%; }
+
+  #sidebar {
+    width: 300px;
+    background: #22242e;
+    border-right: 2px solid #3a3d4a;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  #sidebar-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid #3a3d4a;
+    font-size: 12px;
+    color: #7eb8f7;
+    font-weight: bold;
+  }
+
+  #border-list { flex: 1; overflow-y: auto; padding: 4px; min-height: 60px; }
+  #border-list::-webkit-scrollbar { width: 4px; }
+  #border-list::-webkit-scrollbar-track { background: #2b2d36; }
+  #border-list::-webkit-scrollbar-thumb { background: #3a3d4a; border-radius: 2px; }
+
+  .border-item {
+    padding: 7px 9px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+  }
+  .border-item:hover { background: #2e3140; }
+  .border-item.selected { background: #2e3140; border-color: #4a7ebb; }
+
+  .border-item-title { font-size: 12px; font-weight: bold; color: #dde1e7; }
+  .border-item-meta { font-size: 11px; color: #666; margin-top: 2px; }
+
+  .type-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+  .type-land          { background: #1a3a1a; color: #6abf7a; }
+  .type-tunnel        { background: #3a2020; color: #e07070; }
+  .type-bridge        { background: #3a2e10; color: #d4a840; }
+  .type-tunnel_bridge { background: #3a2020; color: #e07070; }
+  .type-ferry         { background: #102030; color: #60a8e0; }
+
+  #detail-panel {
+    border-top: none;
+    padding: 10px 12px;
+    font-size: 11px;
+    overflow-y: auto;
+    color: #bbb;
+    min-height: 60px;
+  }
+
+  #splitter {
+    height: 6px;
+    background: #3a3d4a;
+    cursor: ns-resize;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #splitter:hover { background: #4a7ebb; }
+  #splitter::after {
+    content: '';
+    width: 30px;
+    height: 2px;
+    background: #666;
+    border-radius: 2px;
+  }
+  #detail-panel::-webkit-scrollbar { width: 4px; }
+  #detail-panel::-webkit-scrollbar-track { background: #2b2d36; }
+  #detail-panel::-webkit-scrollbar-thumb { background: #3a3d4a; border-radius: 2px; }
+
+  #detail-panel h3 { color: #7eb8f7; font-size: 13px; margin-bottom: 7px; }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid #3a3d4a;
+  }
+  .detail-label { color: #666; }
+  .detail-value { color: #dde1e7; font-weight: bold; }
+
+  /* カラーパレット（ヘッダー） */
+  .color-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .color-wrap label { color: #888; font-size: 11px; }
+  .palette-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .palette-swatch:hover { border-color: #fff; transform: scale(1.2); }
+  .palette-swatch.active { border-color: #fff; transform: scale(1.2); }
+  .color-picker-btn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .color-reset-btn {
+    background: #2e3140;
+    border: 1px solid #3a3d4a;
+    color: #888;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .color-reset-btn:hover { color: #dde1e7; }
+
+  /* トグルスイッチ */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .toggle-wrap label { font-size: 11px; color: #aac4e8; cursor: pointer; }
+  .toggle-switch {
+    position: relative;
+    width: 36px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: #2e3140;
+    border: 1px solid #4a7ebb;
+    border-radius: 18px;
+    transition: 0.2s;
+  }
+  .toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    left: 2px;
+    top: 2px;
+    background: #4a7ebb;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background: #4a7ebb; }
+  .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); background: #fff; }
+
+  /* 全リセットボタン */
+  .all-reset-btn {
+    background: #2e3140;
+    border: 1px solid #e07070;
+    color: #e07070;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .all-reset-btn:hover { background: #e07070; color: #fff; }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #555;
+    font-size: 13px;
+  }
+
+  .muni-list { margin-top: 8px; font-size: 11px; }
+  .muni-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    border-bottom: 1px solid #3a3d4a;
+  }
+  .muni-color { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .muni-name { color: #bbb; }
+
+  /* 市区町村ラベル */
+  .muni-label {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000, 0 0 4px #000;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .muni-label-box {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 3px;
+    vertical-align: middle;
+    flex-shrink: 0;
+  }
+
+  #basic-info-panel {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #bbb;
+    border-bottom: 1px solid #3a3d4a;
+    flex-shrink: 0;
+  }
+  #basic-info-panel h3 { color: #7eb8f7; font-size: 13px; margin-bottom: 5px; }
+
+  /* タブ */
+  #detail-tabs {
+    display: flex;
+    border-bottom: 1px solid #3a3d4a;
+    flex-shrink: 0;
+    background: #22242e;
+  }
+  .detail-tab {
+    flex: 1;
+    padding: 5px 4px;
+    font-size: 11px;
+    color: #666;
+    cursor: pointer;
+    text-align: center;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .detail-tab:hover { color: #aac4e8; }
+  .detail-tab.active { color: #7eb8f7; border-bottom-color: #4a7ebb; }
+
+  #detail-panel {
+    border-top: none;
+    padding: 10px 12px;
+    font-size: 11px;
+    overflow-y: auto;
+    color: #bbb;
+    min-height: 60px;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* タイムライン */
+  .timeline-item {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 2px 0;
+    border-bottom: 1px solid #2e3140;
+    font-size: 11px;
+    font-family: monospace;
+  }
+  .timeline-km {
+    color: #7eb8f7;
+    min-width: 60px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .timeline-icon { flex-shrink: 0; }
+  .timeline-label { color: #dde1e7; }
+  .timeline-sub { color: #888; font-size: 10px; }
+
+  /* しゅるいべつ */
+  .category-section { margin-top: 8px; }
+  .category-title { color: #7eb8f7; font-size: 10px; margin: 6px 0 2px; }
+  .category-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+    border-bottom: 1px solid #3a3d4a;
+    font-size: 11px;
+  }
+  .category-name { color: #bbb; display: flex; align-items: center; gap: 4px; }
+  .category-km { color: #7eb8f7; font-size: 10px; }
+
+  .timeline-item.clickable { cursor: pointer; }
+  .timeline-item.clickable:hover { background: #2a2d3a; }
+  .category-item.clickable { cursor: pointer; }
+  .category-item.clickable:hover { background: #2a2d3a; }
+
+  .leaflet-popup-content-wrapper {
+    background: #22242e !important;
+    border: 1px solid #4a7ebb !important;
+    color: #dde1e7 !important;
+  }
+  .leaflet-popup-tip { background: #22242e !important; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.7</span></h1>
+  <span class="sep">|</span>
+  <div class="slider-wrap">
+    地図の濃さ
+    <input type="range" id="opacity-slider" min="10" max="100" value="100"
+      oninput="setTileOpacity(this.value)">
+  </div>
+  <span class="sep">|</span>
+  <div class="toggle-wrap">
+    <label for="muni-toggle-input">市区町村</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="muni-toggle-input" onchange="toggleMuni()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="label-toggle-input">自治体名</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="label-toggle-input" onchange="toggleLabel()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="peaks-toggle-input">山岳</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="peaks-toggle-input" onchange="togglePeaks()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="rail-toggle-input">鉄道</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="rail-toggle-input" onchange="toggleRail()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="road-toggle-input">道路</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="road-toggle-input" onchange="toggleRoad()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="bridge-toggle-input">橋梁</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="bridge-toggle-input" onchange="toggleBridge()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="tunnel-toggle-input">トンネル</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="tunnel-toggle-input" onchange="toggleTunnel()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="river-toggle-input">河川</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="river-toggle-input" onchange="toggleRiver()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="river-seg-toggle-input">区間</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="river-seg-toggle-input" onchange="toggleRiverSeg()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="lake-toggle-input">湖沼</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="lake-toggle-input" onchange="toggleLake()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="dam-toggle-input">ダム</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="dam-toggle-input" onchange="toggleDam()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="heritage-toggle-input">世界遺産</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="heritage-toggle-input" onchange="toggleHeritage()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="marker-toggle-input">始終点</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="marker-toggle-input" onchange="toggleMarker()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <span class="sep">|</span>
+  <div class="color-wrap">
+    <label>線型</label>
+    <select id="line-style-select" onchange="setLineStyleFromSelect(this.value)" style="background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:3px 6px;border-radius:4px;font-size:11px;cursor:pointer;">
+      <option value="solid">実線</option>
+      <option value="dot">点線</option>
+      <option value="dash">破線</option>
+      <option value="dashdot">鎖線</option>
+    </select>
+  </div>
+  <span class="sep">|</span>
+  <div class="color-wrap">
+    <label>線の色</label>
+    <div id="palette-swatches"></div>
+    <input type="color" id="header-color-picker" class="color-picker-btn" title="カスタムカラー"
+      oninput="changeColorFromHeader(this.value)">
+    <button class="color-reset-btn" onclick="resetColorFromHeader()">リセット</button>
+  <span class="sep">|</span>
+  <button class="all-reset-btn" onclick="resetAllColors()">全色リセット</button>
+  </div>
+  <span id="status">読み込み中...</span>
+  <span class="sep">|</span>
+  <button id="edit-mode-btn" onclick="toggleEditMode()" style="background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">✏️ へんしゅうモード</button>
+  <button id="export-btn" onclick="exportEdits()" style="display:none;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">💾 エクスポート</button>
+  <label id="import-btn" style="display:none;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">📂 インポート<input type="file" accept=".json" onchange="importEdits(event)" style="display:none;"></label>
+  <button onclick="exportTimelineCSV()" style="background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">📊 CSV</button>
+  <button onclick="exportTimelineText()" style="background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">📝 テキスト</button>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebar-header">県境リスト（<span id="count">-</span>件）</div>
+    <div id="border-list"><div class="loading">読み込み中...</div></div>
+    <div id="splitter"></div>
+    <div id="basic-info-panel">
+      <div style="color:#555;font-size:11px;">県境をクリックすると詳細が表示されます</div>
+    </div>
+    <div id="detail-tabs">
+      <div class="detail-tab active" onclick="switchTab('timeline')" id="tab-timeline">📏 タイムライン</div>
+      <div class="detail-tab" onclick="switchTab('category')" id="tab-category">🏷️ しゅるいべつ</div>
+    </div>
+    <div id="detail-panel">
+      <div id="tab-content-timeline" class="tab-content active"></div>
+      <div id="tab-content-category" class="tab-content"></div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+<!-- モーダル -->
+</script>
+<div id="edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#22242e;border:1px solid #4a7ebb;border-radius:8px;padding:24px;min-width:320px;max-width:400px;color:#bbb;font-size:13px;">
+    <h3 id="modal-title" style="color:#7eb8f7;margin-bottom:16px;">こうもくをついか</h3>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">しゅるい</label>
+      <select id="modal-type" onchange="onModalTypeChange()" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;">
+        <option value="peak">⛰️ 山岳</option>
+        <option value="rail">🛤️ 鉄道こうさてん</option>
+        <option value="station">🚉 えき</option>
+        <option value="road_highway">高速 道路</option>
+        <option value="road_national">国道</option>
+        <option value="road_pref">県道</option>
+        <option value="custom">✏️ カスタム</option>
+      </select>
+    </div>
+    <div id="modal-custom-icon-wrap" style="display:none;margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">アイコン（えもじ または もじ）</label>
+      <input id="modal-custom-icon" type="text" placeholder="🏠 または 橋" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+      <div id="modal-text-style-wrap" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:80px;">
+          <label style="display:block;margin-bottom:2px;color:#888;font-size:10px;">もじいろ</label>
+          <input id="modal-text-color" type="color" value="#000000" style="width:100%;height:28px;background:#2e3140;border:1px solid #4a7ebb;border-radius:4px;cursor:pointer;">
+        </div>
+        <div style="flex:1;min-width:80px;">
+          <label style="display:block;margin-bottom:2px;color:#888;font-size:10px;">フチいろ</label>
+          <input id="modal-text-stroke" type="color" value="#ffffff" style="width:100%;height:28px;background:#2e3140;border:1px solid #4a7ebb;border-radius:4px;cursor:pointer;">
+        </div>
+        <div style="flex:1;min-width:80px;">
+          <label style="display:block;margin-bottom:2px;color:#888;font-size:10px;">おおきさ</label>
+          <select id="modal-text-size" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px;border-radius:4px;font-size:11px;">
+            <option value="12px">小</option>
+            <option value="16px" selected>中</option>
+            <option value="20px">大</option>
+            <option value="24px">特大</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:80px;">
+          <label style="display:block;margin-bottom:2px;color:#888;font-size:10px;">フォント</label>
+          <select id="modal-text-font" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:4px;border-radius:4px;font-size:11px;">
+            <option value="sans-serif">ゴシック</option>
+            <option value="serif">明朝</option>
+            <option value="monospace">等幅</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="modal-custom-category-wrap" style="display:none;margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">カテゴリめい</label>
+      <input id="modal-custom-category" type="text" placeholder="カスタム" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">なまえ</label>
+      <input id="modal-name" type="text" placeholder="なまえをにゅうりょく" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">pos_m（始点からのきょり・m）</label>
+      <input id="modal-posm" type="number" placeholder="0" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">メモ（任意）</label>
+      <input id="modal-note" type="text" placeholder="メモ" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+    </div>
+    <div id="modal-existing-wrap" style="display:none;background:#1a1c24;border:1px solid #3a3d4a;border-radius:4px;padding:10px;margin-bottom:12px;">
+      <div style="color:#888;font-size:10px;margin-bottom:6px;">もとのデータ</div>
+      <div id="modal-existing-info" style="color:#7eb8f7;font-size:11px;"></div>
+    </div>
+    <div id="modal-display-label-wrap" style="display:none;margin-bottom:12px;">
+      <label style="display:block;margin-bottom:4px;color:#888;">ひょうじめい（へんこうしたいばあい）</label>
+      <input id="modal-display-label" type="text" placeholder="もとのなまえのまま" style="width:100%;background:#2e3140;border:1px solid #4a7ebb;color:#aac4e8;padding:6px;border-radius:4px;box-sizing:border-box;">
+    </div>
+    <div id="modal-hidden-wrap" style="display:none;margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="modal-hidden">
+        <span style="color:#e07070;">このこうもくをひひょうじにする</span>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeEditModal()" style="background:#3a3d4a;border:none;color:#aac4e8;padding:8px 16px;border-radius:4px;cursor:pointer;">キャンセル</button>
+      <button onclick="saveEditModal()" style="background:#4a7ebb;border:none;color:#fff;padding:8px 16px;border-radius:4px;cursor:pointer;">ほぞん</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================================
+// 0kmケースの座標
+// ========================================
+const ZERO_KM_LOCATIONS = {
+  1:  { lat: 41.40, lng: 140.50, zoom: 9,  label: '青函トンネル（津軽海峡）',   pref1: '北海道', pref2: '青森', type: 'tunnel' },
+  29: { lat: 35.45, lng: 139.85, zoom: 11, label: '東京湾アクアライン',         pref1: '神奈川', pref2: '千葉', type: 'bridge' },
+  67: { lat: 34.25, lng: 134.65, zoom: 11, label: '大鳴門橋（鳴門海峡）',       pref1: '兵庫',   pref2: '徳島', type: 'bridge' },
+  78: { lat: 33.95, lng: 130.95, zoom: 11, label: '関門トンネル・関門橋',       pref1: '山口',   pref2: '福岡', type: 'tunnel' },
+  93: { lat: 27.10, lng: 128.40, zoom: 9,  label: '与論島〜辺戸岬（フェリー航路）', pref1: '鹿児島', pref2: '沖縄', type: 'ferry' }
+};
+
+// ========================================
+// タイル設定
+// ========================================
+const TILES = {
+  std:   { url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',           attr: '国土地理院' },
+  photo: { url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', attr: '国土地理院' },
+  pale:  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',          attr: '国土地理院' }
+};
+
+const map = L.map('map', { center: [36.5, 137.0], zoom: 6, clickTolerance: 10 });
+
+const tileLayers = {
+  '淡色地図': L.tileLayer(TILES.pale.url,  { attribution: TILES.pale.attr,  maxZoom: 18 }),
+  '地理院地図': L.tileLayer(TILES.std.url,   { attribution: TILES.std.attr,   maxZoom: 18 }),
+  '空中写真':  L.tileLayer(TILES.photo.url, { attribution: TILES.photo.attr, maxZoom: 18 }),
+};
+let currentTileLayer = tileLayers['淡色地図'].addTo(map);
+L.control.layers(tileLayers, {}, { position: 'topright', collapsed: true }).addTo(map);
+
+// みぎしたにサイズひょうじ
+const sizeInfo = L.control({ position: 'bottomright' });
+sizeInfo.onAdd = () => {
+  const div = L.DomUtil.create('div');
+  div.id = 'muni-size-info';
+  div.style.cssText = 'background:rgba(255,255,255,0.7);padding:2px 6px;font-size:10px;color:#666;border-radius:3px;';
+  div.textContent = 'municipalities: よみこみちゅう...';
+  return div;
+};
+sizeInfo.addTo(map);
+
+function setTileOpacity(val) {
+  currentTileLayer.setOpacity(val / 100);
+  // Leafletコントロールのすべてのタイルにopacityをてきよう
+  Object.values(tileLayers).forEach(l => l.setOpacity(val / 100));
+}
+
+// ========================================
+// カスタムカラー（ローカルストレージ保存）
+// ========================================
+const STORAGE_KEY = 'kenkyou_colors';
+let customColors = {};
+
+function loadColors() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) customColors = JSON.parse(saved);
+  } catch(e) {}
+}
+
+function saveColors() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(customColors)); } catch(e) {}
+}
+
+function getBorderColor(id, type) {
+  if (customColors[id]) return customColors[id];
+  return TYPE_COLORS[type] || '#5b9cf6';
+}
+
+loadColors();
+
+// ========================================
+// 色設定
+// ========================================
+const TYPE_COLORS = {
+  land: '#5b9cf6', tunnel: '#e07070', bridge: '#d4a840',
+  tunnel_bridge: '#e07070', ferry: '#60c8a0'
+};
+const TYPE_LABELS = {
+  land: '陸上', tunnel: 'トンネル', bridge: '橋',
+  tunnel_bridge: 'トンネル・橋', ferry: 'フェリー'
+};
+
+const WARM_COLORS = ['#e53935','#7b1fa2','#ff9800','#795548','#f06292','#fdd835'];
+const COOL_COLORS = ['#1565c0','#4fc3f7','#00897b','#283593','#0097a7','#8bc34a'];
+
+function getMuniColor(side, i) {
+  return side === 'pref1' ? WARM_COLORS[i % WARM_COLORS.length] : COOL_COLORS[i % COOL_COLORS.length];
+}
+
+// ========================================
+// データ
+// ========================================
+let allFeatures = [], geojsonLayer = null;
+let muniLayer = null, muniLabelLayer = null, markerLayer = null, peaksLayer = null, railLayer = null, roadLayer = null;
+let railData = {}, railVisible = false;
+let roadData = {}, roadVisible = false;
+let bridgeData = {}, bridgeVisible = false;
+let tunnelData = {}, tunnelVisible = false;
+let riverData = {}, riverVisible = false, riverSegVisible = false;
+let lakeData = {}, lakeVisible = false;
+let damData = {}, damVisible = false;
+let heritageData = {}, heritageVisible = false;
+const WHC_NATURE_NAMES = {
+  '01': '屋久島',
+  '02': '白神山地',
+  '03': '知床',
+  '04': '小笠原諸島',
+  '05': '奄美大島、徳之島、沖縄島北部及び西表島',
+};
+function resolveHeritageName(item) {
+  if (item.kind === 'nature' && WHC_NATURE_NAMES[item.name]) {
+    return WHC_NATURE_NAMES[item.name];
+  }
+  return item.name || '（名称不詳）';
+}
+let muniData = {}, muniCenters = {}, muniLengths = {}, peaksData = {}, muniVisible = false, labelVisible = false, markerVisible = false, selectedId = null;
+
+// 山岳データよみこむ
+fetch('kenkyou_peaks.json')
+  .then(r => r.json())
+  .then(data => { peaksData = data; })
+
+fetch('kenkyou_road.json')
+  .then(r => r.json())
+  .then(data => { roadData = data; })
+  .catch(() => { console.warn('kenkyou_road.json よみこめませんでした'); })
+fetch('kenkyou_rail.json')
+  .then(r => r.json())
+  .then(data => { railData = data; })
+  .catch(() => { console.warn('kenkyou_rail.json よみこめませんでした'); })
+fetch('kenkyou_bridge.json')
+  .then(r => r.json())
+  .then(data => { bridgeData = data; })
+  .catch(() => { console.warn('kenkyou_bridge.json よみこめませんでした'); })
+fetch('kenkyou_tunnel.json')
+  .then(r => r.json())
+  .then(data => { tunnelData = data; })
+  .catch(() => { console.warn('kenkyou_tunnel.json よみこめませんでした'); })
+  .catch(e => console.warn('山岳データ読み込み失敗:', e));
+
+fetch('kenkyou_river.json')
+  .then(r => r.json())
+  .then(data => { riverData = data; })
+  .catch(() => { console.warn('kenkyou_river.json よみこめませんでした'); })
+fetch('kenkyou_lake.json')
+  .then(r => r.json())
+  .then(data => { lakeData = data; })
+  .catch(() => { console.warn('kenkyou_lake.json よみこめませんでした'); })
+fetch('kenkyou_dam.json')
+  .then(r => r.json())
+  .then(data => { damData = data; })
+  .catch(() => { console.warn('kenkyou_dam.json よみこめませんでした'); })
+fetch('kenkyou_heritage.json')
+  .then(r => r.json())
+  .then(data => { heritageData = data; })
+  .catch(() => { console.warn('kenkyou_heritage.json よみこめませんでした'); })
+
+// 市区町村中心点データ読み込み
+fetch('kenkyou_muni_centers.json')
+  .then(r => r.json())
+  .then(data => {
+    muniCenters = data;
+    console.log('中心点データ OK:', Object.keys(muniCenters).length + '件');
+  })
+  .catch(e => console.warn('中心点データ読み込み失敗:', e));
+
+fetch('kenkyou_muni_lengths.json')
+  .then(r => r.json())
+  .then(data => { muniLengths = data; })
+  .catch(e => console.warn('市区町村ながさデータ読み込み失敗:', e));
+
+fetch('kenkyou_municipalities.geojson')
+  .then(r => {
+    const size = r.headers.get('content-length');
+    if (size) {
+      const mb = (parseInt(size) / 1024 / 1024).toFixed(1);
+      document.getElementById('muni-size-info').textContent = `municipalities: ${mb}MB`;
+    }
+    return r.json();
+  })
+  .then(data => {
+    data.features.forEach(f => {
+      muniData[f.properties.border_id] = f.properties.municipalities;
+    });
+    // content-lengthがなければJSONのサイズをおおよそけいさん
+    const rough = (JSON.stringify(data).length / 1024 / 1024).toFixed(1);
+    document.getElementById('muni-size-info').textContent = `municipalities: ~${rough}MB`;
+  })
+  .catch(e => console.warn('市区町村データ読み込み失敗:', e));
+
+loadEditsFromStorage();
+fetch('kenkyou_borders_v7.geojson')
+  .then(r => {
+    if (!r.ok) throw new Error('kenkyou_borders.geojson が見つかりません');
+    return r.json();
+  })
+  .then(data => {
+    allFeatures = data.features;
+    document.getElementById('status').textContent = `${allFeatures.length}件読み込み完了`;
+    renderList(allFeatures);
+    renderMap(allFeatures);
+    if (markerVisible) renderMarkers(selectedId);
+  })
+  .catch(err => {
+    document.getElementById('status').textContent = 'エラー: ' + err.message;
+    document.getElementById('border-list').innerHTML =
+      `<div style="padding:14px;color:#e07070;font-size:12px;">
+        ❌ GeoJSON読み込み失敗<br><br>
+        HTMLと同じフォルダに<br>
+        <b>kenkyou_borders.geojson</b><br>
+        を置いてください。
+      </div>`;
+  });
+
+// ========================================
+// 市区町村
+// ========================================
+function toggleLabel() {
+  labelVisible = document.getElementById('label-toggle-input').checked;
+  if (labelVisible) {
+    if (muniVisible && muniLabelLayer) {
+      muniLabelLayer.addTo(map);
+    } else if (!muniVisible && selectedId) {
+      renderLabelOnly(selectedId);
+    }
+  } else {
+    if (muniLabelLayer) map.removeLayer(muniLabelLayer);
+  }
+}
+
+function renderPeaks(borderId) {
+  if (peaksLayer) { map.removeLayer(peaksLayer); peaksLayer = null; }
+  if (!borderId || !peaksVisible) return;
+
+  const peaks = peaksData[String(borderId)] || [];
+  if (!peaks.length) return;
+  const overrideMap = buildOverrideMap(borderId);
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  const totalM = f ? f.properties.length_km * 1000 : Infinity;
+
+  peaksLayer = L.layerGroup();
+  window._peakItems = [];
+
+  peaks.forEach(peak => {
+    if (!peak.lat || !peak.lng) return;
+    if (peak.pos_m != null && peak.pos_m > totalM) return;
+    const overrideKey = `peak_${peak.name}`;
+    const ov = overrideMap[overrideKey];
+    if (ov && ov.hidden) return;
+    const name = ov && ov.displayLabel ? ov.displayLabel : (peak.name || '（名称なし）');
+    const ele = peak.ele ? `${peak.ele}m` : '標高不明';
+    const posKm = peak.pos_m ? `${(peak.pos_m/1000).toFixed(1)}km地点` : '';
+
+    const marker = L.marker([peak.lat, peak.lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-size:16px;text-shadow:0 0 3px #fff,0 0 3px #fff;">⛰️</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })
+    }).bindTooltip(`<b>${name}</b><br>${ele}　${posKm}`, { sticky: true })
+      .on('click', () => { if (peak.pos_m != null) scrollTimelineToPos(peak.pos_m); })
+      .addTo(peaksLayer);
+
+    window._peakItems.push({
+      kind: 'peak',
+      lat: peak.lat, lng: peak.lng,
+      pos_m: peak.pos_m,
+      iconHtml: '<div style="font-size:16px;text-shadow:0 0 3px #fff,0 0 3px #fff;">⛰️</div>',
+      iconW: 20,
+      tooltip: `<b>${name}</b><br>${ele}　${posKm}`,
+      leafletMarker: marker,
+    });
+  });
+
+  peaksLayer.addTo(map);
+}
+
+let peaksVisible = false;
+
+function togglePeaks() {
+  peaksVisible = document.getElementById('peaks-toggle-input').checked;
+  if (!peaksVisible) {
+    if (peaksLayer) { map.removeLayer(peaksLayer); peaksLayer = null; }
+  } else {
+    if (selectedId) renderPeaks(selectedId);
+  }
+  consolidateIcons();
+}
+
+function toggleRail() {
+  railVisible = document.getElementById('rail-toggle-input').checked;
+  if (selectedId) { if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; } renderAllIcons(selectedId); }
+}
+
+function renderRail(borderId) {
+  if (railLayer) { map.removeLayer(railLayer); railLayer = null; }
+  if (!borderId || !railVisible) return;
+
+  const items = railData[String(borderId)] || [];
+  if (!items.length) return;
+  const overrideMap = buildOverrideMap(borderId);
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  const totalM = f ? f.properties.length_km * 1000 : Infinity;
+
+  railLayer = L.layerGroup();
+
+  items.forEach(item => {
+    if (!item.lat || !item.lng) return;
+    if (item.pos_m != null && item.pos_m > totalM) return; // けんきょうそとはスキップ
+    const overrideKey = `rail_${item.name}_${item.pos_m}`;
+    const ov = overrideMap[overrideKey];
+    if (ov && ov.hidden) return; // ひひょうじ
+    const displayName = ov && ov.displayLabel ? ov.displayLabel : item.name;
+    const posKm = item.pos_m ? `${(item.pos_m/1000).toFixed(1)}km地点` : '';
+
+    let tooltip = '';
+    if (item.type === 'station') {
+      tooltip = `🚉 <b>${displayName}</b><br>${item.line}<br>${item.company}<br>${posKm}`;
+    } else {
+      tooltip = `${item.icon} <b>${displayName}</b><br>${item.company}<br>${posKm}`;
+    }
+
+    L.marker([item.lat, item.lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-size:16px;text-shadow:0 0 3px #fff,0 0 3px #fff;">${item.icon}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })
+    }).bindTooltip(tooltip, { sticky: true })
+      .on('click', () => { if (item.pos_m != null) scrollTimelineToPos(item.pos_m); })
+      .addTo(railLayer);
+  });
+
+  railLayer.addTo(map);
+}
+
+function getRoadSvgIcon(road_type) {
+  if (road_type === 'motorway' || road_type === 'motorway_link') {
+    // 高速：みどりのたてながかく
+    return `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="3" width="16" height="14" rx="3" fill="#2e7d32" stroke="#fff" stroke-width="1.5"/>
+      <text x="10" y="13" text-anchor="middle" font-size="8" font-weight="bold" fill="#fff" font-family="sans-serif">高速</text>
+    </svg>`;
+  } else if (road_type === 'trunk' || road_type === 'trunk_link') {
+    // 国道：さかさまおにぎりマーク
+    return `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      <path d="M10,19 C7,19 1,7 1,3 C1,1 3,1 10,1 C17,1 19,1 19,3 C19,7 13,19 10,19 Z" fill="#1565c0" stroke="#fff" stroke-width="1.5"/>
+      <text x="10" y="9" text-anchor="middle" font-size="6" font-weight="bold" fill="#fff" font-family="sans-serif">国道</text>
+    </svg>`;
+  } else {
+    // 県道：よこヘキサ（あお）
+    return `<svg width="24" height="20" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="6,1 18,1 23,10 18,19 6,19 1,10" fill="#1565c0" stroke="#fff" stroke-width="1.5"/>
+      <text x="12" y="13" text-anchor="middle" font-size="6" font-weight="bold" fill="#fff" font-family="sans-serif">県道</text>
+    </svg>`;
+  }
+}
+
+let editLayer = null;
+
+function renderEditItems(borderId) {
+  if (editLayer) { map.removeLayer(editLayer); editLayer = null; }
+  if (!borderId) return;
+  const allEdits = editData[String(borderId)] || [];
+
+  // overrideMapをつくる
+  const overrideMap = {};
+  allEdits.filter(e => e.kind === 'override').forEach(e => { overrideMap[e.overrideKey] = e; });
+
+  // editこうもくでhiddenでないものだけひょうじ
+  const items = allEdits.filter(e => e.kind === 'edit' && !e.hidden);
+  if (!items.length) return;
+  editLayer = L.layerGroup();
+  items.forEach((item, i) => {
+    if (!item.lat || !item.lng) return;
+    const displayLabel = item.displayLabel || item.label;
+    const ts = item.textStyle;
+    const iconHtml = ts
+      ? `<div style="font-size:${ts.size};font-family:${ts.font};color:${ts.color};text-shadow:-1px -1px 0 ${ts.stroke},1px -1px 0 ${ts.stroke},-1px 1px 0 ${ts.stroke},1px 1px 0 ${ts.stroke};white-space:nowrap;cursor:grab;">${item.icon}</div>`
+      : `<div style="font-size:16px;text-shadow:0 0 3px #fff,0 0 3px #fff;cursor:grab;">${item.icon}</div>`;
+    const marker = L.marker([item.lat, item.lng], {
+      draggable: true,
+      icon: L.divIcon({
+        className: '',
+        html: iconHtml,
+        iconSize: [null, null],
+        iconAnchor: [10, 10]
+      })
+    }).bindTooltip(`<b>${displayLabel}</b>${item.note ? '<br>' + item.note : ''}`, { sticky: true });
+
+    // ドラッグちゅうにけんきょうラインにスナップ
+    marker.on('drag', (e) => {
+      const latlng = e.target.getLatLng();
+      const snapped = snapToLine(borderId, latlng.lat, latlng.lng);
+      e.target.setLatLng([snapped.lat, snapped.lng]);
+    });
+
+    // ドラッグおわりにpos_m・lat・lngをこうしん
+    marker.on('dragend', (e) => {
+      const latlng = e.target.getLatLng();
+      const posM = calcPosMFromLatLng(borderId, latlng.lat, latlng.lng);
+      editData[String(borderId)][i].lat = latlng.lat;
+      editData[String(borderId)][i].lng = latlng.lng;
+      editData[String(borderId)][i].pos_m = posM;
+      saveEditsToStorage();
+      const f = allFeatures.find(f=>f.properties.id===borderId);
+      const colorMap = buildColorMap(borderId);
+      renderTimeline(borderId, f, colorMap);
+    });
+
+    marker.addTo(editLayer);
+  });
+  editLayer.addTo(map);
+}
+
+function renderRoad(borderId) {
+  if (roadLayer) { map.removeLayer(roadLayer); roadLayer = null; }
+  if (!borderId || !roadVisible) return;
+  // renderAllIconsでまとめてひょうじ
+  renderAllIcons(borderId);
+}
+
+let bridgeLayer = null;
+function renderBridge(borderId) {
+  if (bridgeLayer) { map.removeLayer(bridgeLayer); bridgeLayer = null; }
+  if (!borderId || !bridgeVisible) return;
+  renderAllIcons(borderId);
+}
+
+let tunnelLayer = null;
+function renderTunnel(borderId) {
+  if (tunnelLayer) { map.removeLayer(tunnelLayer); tunnelLayer = null; }
+  if (!borderId || !tunnelVisible) return;
+  renderAllIcons(borderId);
+}
+
+// road・bridge・tunnelをまとめてグループひょうじする
+let iconGroupLayer = null;
+function renderAllIcons(borderId) {
+  if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+  if (!borderId) return;
+
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  const totalM = f ? f.properties.length_km * 1000 : Infinity;
+  const overrideMap = buildOverrideMap(borderId);
+
+  // ぜんアイコンをあつめる
+  const allItems = [];
+
+  if (railVisible) {
+    const rails = railData[String(borderId)] || [];
+    rails.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const ov = overrideMap[`rail_${item.name}_${item.pos_m}`];
+      if (ov && ov.hidden) return;
+      const displayName = ov && ov.displayLabel ? ov.displayLabel : item.name;
+      const kind = item.type === 'station' ? 'station' : 'rail';
+      const icon = kind === 'station' ? '🚉' : (item.icon || '🚃');
+      allItems.push({
+        kind: kind,
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: `<div style="font-size:16px;line-height:1;">${icon}</div>`,
+        iconW: 20,
+        tooltip: `<b>${icon} ${displayName}</b><br>${item.line||''}<br>${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (roadVisible) {
+    const roads = roadData[String(borderId)] || [];
+    roads.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const ov = overrideMap[`road_${item.label}_${item.pos_m}`];
+      if (ov && ov.hidden) return;
+      const displayLabel = ov && ov.displayLabel ? ov.displayLabel : item.label;
+      allItems.push({
+        kind: 'road',
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: getRoadSvgIcon(item.road_type),
+        iconW: 20,
+        tooltip: `<b>${displayLabel}</b><br>${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (bridgeVisible) {
+    const bridges = bridgeData[String(borderId)] || [];
+    bridges.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const ov = overrideMap[`bridge_${item.name}_${item.pos_m}`];
+      if (ov && ov.hidden) return;
+      const displayName = ov && ov.displayLabel ? ov.displayLabel : item.name;
+      allItems.push({
+        kind: 'bridge',
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: '<div style="font-size:16px;line-height:1;">🌉</div>',
+        iconW: 20,
+        tooltip: `<b>🌉 ${displayName}</b><br>${item.route||''}<br>橋長: ${item.length_m}m<br>完成: ${item.year||'不明'}<br>${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (tunnelVisible) {
+    const tunnels = tunnelData[String(borderId)] || [];
+    tunnels.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const ov = overrideMap[`tunnel_${item.name}_${item.pos_m}`];
+      if (ov && ov.hidden) return;
+      const displayName = ov && ov.displayLabel ? ov.displayLabel : item.name;
+      allItems.push({
+        kind: 'tunnel',
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: '<div style="font-size:16px;line-height:1;">🚇</div>',
+        iconW: 20,
+        tooltip: `<b>🚇 ${displayName}</b><br>${item.route||''}<br>延長: ${item.length_m}m<br>完成: ${item.year||'不明'}<br>${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (riverVisible) {
+    const rivers = riverData[String(borderId)] || [];
+    rivers.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const displayName = item.name || '（名称不詳）';
+      const endKm = item.pos_end_m ? `〜${(item.pos_end_m/1000).toFixed(3)}km` : '';
+
+      if (riverSegVisible && item.segments && item.segments.length > 0) {
+        // せぐメントごとにアイコンをおく
+        item.segments.forEach((seg, i) => {
+          if (!seg.lat || !seg.lng) return;
+          if (seg.pos_m > totalM) return;
+          allItems.push({
+            kind: 'river',
+            lat: seg.lat, lng: seg.lng, pos_m: seg.pos_m,
+            iconHtml: '<div style="font-size:14px;line-height:1;opacity:0.8;">🌊</div>',
+            iconW: 18,
+            tooltip: `<b>🌊 ${displayName}</b>（区間${i+1}/${item.segments.length}）<br>${(seg.pos_m/1000).toFixed(3)}km${seg.pos_end_m ? '〜' + (seg.pos_end_m/1000).toFixed(3) + 'km' : ''}`,
+          });
+        });
+      } else {
+        const rangeKm = `${(item.pos_m/1000).toFixed(3)}km〜${item.pos_end_m ? (item.pos_end_m/1000).toFixed(3) + 'km' : ''}`;
+        allItems.push({
+          kind: 'river',
+          lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+          iconHtml: '<div style="font-size:16px;line-height:1;">🌊</div>',
+          iconW: 20,
+          tooltip: `<b>🌊 ${displayName}（入）</b><br>${rangeKm}`,
+          label_type: 'in',
+          pos_end_m: item.pos_end_m,
+          name: item.name,
+        });
+        // へいこうするかわは出点にもアイコンをおく
+        if (item.type === 'parallel' && item.lat_end && item.lng_end) {
+          allItems.push({
+            kind: 'river',
+            lat: item.lat_end, lng: item.lng_end, pos_m: item.pos_end_m || item.pos_m,
+            iconHtml: '<div style="font-size:16px;line-height:1;opacity:0.7;">🌊</div>',
+            iconW: 20,
+            tooltip: `<b>🌊 ${displayName}（出）</b><br>${rangeKm}`,
+            label_type: 'out',
+            pos_end_m: item.pos_end_m,
+            name: item.name,
+          });
+        }
+      }
+    });
+  }
+
+  if (lakeVisible) {
+    const lakes = lakeData[String(borderId)] || [];
+    lakes.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const displayName = item.name || '（名称不詳）';
+      allItems.push({
+        kind: 'lake',
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: '<div style="font-size:16px;line-height:1;">💧</div>',
+        iconW: 20,
+        tooltip: `<b>💧 ${displayName}</b><br>${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (damVisible) {
+    const dams = damData[String(borderId)] || [];
+    dams.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const displayName = item.name || '（名称不詳）';
+      allItems.push({
+        kind: 'dam',
+        lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+        iconHtml: '<div style="font-size:16px;line-height:1;">🔲</div>',
+        iconW: 20,
+        tooltip: `<b>🔲 ${displayName}</b><br>${item.river ? item.river + '<br>' : ''}${(item.pos_m/1000).toFixed(3)}km地点`,
+      });
+    });
+  }
+
+  if (heritageVisible) {
+    const heritages = heritageData[String(borderId)] || [];
+    heritages.forEach(item => {
+      if (!item.lat || !item.lng) return;
+      if (item.pos_m != null && item.pos_m > totalM) return;
+      const displayName = resolveHeritageName(item);
+      const icon = item.kind === 'nature' ? '🌳' : '🏯';
+      if (item.pos_end_m && item.lat_end && item.lng_end) {
+        allItems.push({
+          kind: 'heritage',
+          lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+          iconHtml: `<div style="font-size:16px;line-height:1;">${icon}</div>`,
+          iconW: 20,
+          tooltip: `<b>${icon} ${displayName}</b> ⬇️入域<br>${(item.pos_m/1000).toFixed(3)}km〜${(item.pos_end_m/1000).toFixed(3)}km`,
+          heritage_kind: item.kind,
+        });
+        if (item.pos_end_m <= totalM) {
+          allItems.push({
+            kind: 'heritage',
+            lat: item.lat_end, lng: item.lng_end, pos_m: item.pos_end_m,
+            iconHtml: `<div style="font-size:16px;line-height:1;">${icon}</div>`,
+            iconW: 20,
+            tooltip: `<b>${icon} ${displayName}</b> ⬆️出域<br>${(item.pos_m/1000).toFixed(3)}km〜${(item.pos_end_m/1000).toFixed(3)}km`,
+            heritage_kind: item.kind,
+          });
+        }
+      } else {
+        allItems.push({
+          kind: 'heritage',
+          lat: item.lat, lng: item.lng, pos_m: item.pos_m,
+          iconHtml: `<div style="font-size:16px;line-height:1;">${icon}</div>`,
+          iconW: 20,
+          tooltip: `<b>${icon} ${displayName}</b><br>${(item.pos_m/1000).toFixed(3)}km地点`,
+          heritage_kind: item.kind,
+        });
+      }
+    });
+  }
+
+  if (!allItems.length) return;
+
+  // pos_mでソート
+  allItems.sort((a, b) => a.pos_m - b.pos_m);
+
+  // pos_mが200m以内のものをグループにまとめる
+  const GROUP_THRESH = 50;
+  const groups = [];
+  let currentGroup = [allItems[0]];
+
+  for (let i = 1; i < allItems.length; i++) {
+    const prev = currentGroup[currentGroup.length - 1];
+    if (allItems[i].pos_m - prev.pos_m <= GROUP_THRESH) {
+      currentGroup.push(allItems[i]);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [allItems[i]];
+    }
+  }
+  groups.push(currentGroup);
+
+  iconGroupLayer = L.layerGroup();
+
+  groups.forEach(group => {
+    const lat = group[0].lat;
+    const lng = group[0].lng;
+
+    // うえだん：どうろ・てつどう、しただん：はし・トンネル・かわ
+    const topItems    = group.filter(item => item.kind === 'road' || item.kind === 'rail' || item.kind === 'station');
+    const bottomItems = group.filter(item => item.kind === 'bridge' || item.kind === 'tunnel' || item.kind === 'river' || item.kind === 'lake' || item.kind === 'dam' || item.kind === 'heritage');
+
+    const makeRow = (items) => items.map(item =>
+      `<div style="display:inline-flex;align-items:center;justify-content:center;width:${item.iconW}px;height:${item.iconW}px;">${item.iconHtml}</div>`
+    ).join('');
+
+    const topW    = topItems.reduce((s, i) => s + i.iconW, 0);
+    const bottomW = bottomItems.reduce((s, i) => s + i.iconW, 0);
+    const totalW  = Math.max(topW, bottomW, 20);
+
+    let html = '';
+    if (topItems.length && bottomItems.length) {
+      // 2れつ
+      html = `<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:rgba(0,0,0,0.45);border-radius:4px;padding:1px 2px;">
+        <div style="display:flex;align-items:center;gap:1px;">${makeRow(topItems)}</div>
+        <div style="display:flex;align-items:center;gap:1px;">${makeRow(bottomItems)}</div>
+      </div>`;
+    } else {
+      // 1れつ
+      const items = topItems.length ? topItems : bottomItems;
+      html = `<div style="display:flex;align-items:center;gap:1px;background:rgba(0,0,0,0.45);border-radius:4px;padding:1px 2px;">${makeRow(items)}</div>`;
+    }
+
+    const iconH = (topItems.length && bottomItems.length) ? 44 : 24;
+
+    // ツールチップはグループないのぜんこうもくをまとめる
+    const tooltipHtml = group.map(item => item.tooltip).join('<hr style="margin:3px 0;border-color:#555;">');
+
+    // グループのさいしょのpos_mをつかってタイムラインスクロール
+    const groupPosM = group[0].pos_m;
+
+    L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: html,
+        iconSize: [totalW + group.length * 3, iconH],
+        iconAnchor: [(totalW + group.length * 3) / 2, iconH / 2]
+      })
+    }).bindTooltip(tooltipHtml, { sticky: true, maxWidth: 250 })
+      .on('click', () => scrollTimelineToPos(groupPosM))
+      .addTo(iconGroupLayer);
+  });
+
+  iconGroupLayer.addTo(map);
+}
+
+function toggleMarker() {
+  markerVisible = document.getElementById('marker-toggle-input').checked;
+  if (markerVisible) {
+    renderMarkers(selectedId);
+  } else {
+    if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+    window._markerItems = [];
+  }
+  consolidateIcons();
+}
+
+function renderMarkers(borderId) {
+  if (markerLayer) { map.removeLayer(markerLayer); markerLayer = null; }
+  if (!markerVisible) return;
+
+  const f = borderId != null
+    ? allFeatures.find(f => f.properties.id === borderId)
+    : null;
+  if (!f) return;
+
+  const p = f.properties;
+  const geom = f.geometry;
+  markerLayer = L.layerGroup();
+
+  const isVertical = p.orientation === 'vertical';
+  const startIcon = isVertical ? '⬇️' : '⬅️';
+  const midIcon   = isVertical ? '↕️' : '↔️';
+  const totalM = p.length_km * 1000;
+
+  const allLines = geom.type === 'LineString'
+    ? [geom.coordinates]
+    : geom.coordinates;
+
+  const mainLines = allLines.filter(l => {
+    const s = l[0], e = l[l.length - 1];
+    return !(s[0] === e[0] && s[1] === e[1]);
+  });
+
+  if (mainLines.length === 0) return;
+
+  const orderedLines = mainLines;
+
+  // マーカーをリストにほぞんしてちずにもおく
+  window._markerItems = [];
+
+  const addMarker = (coord, icon, label, pos_m) => {
+    const marker = L.marker([coord[1], coord[0]], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-size:20px;text-shadow:0 0 3px #000;">${icon}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindTooltip(`<b>${p.pref1} × ${p.pref2}</b><br>${label}`, {sticky: true})
+      .addTo(markerLayer);
+
+    window._markerItems.push({
+      kind: 'marker',
+      lat: coord[1], lng: coord[0],
+      pos_m: pos_m,
+      iconHtml: `<div style="font-size:20px;text-shadow:0 0 3px #000;">${icon}</div>`,
+      iconW: 24,
+      tooltip: `<b>${p.pref1} × ${p.pref2}</b><br>${label}`,
+      leafletMarker: marker,  // もとのマーカーをほぞん（グループかのときにけすため）
+    });
+  };
+
+  orderedLines.forEach((line, i) => {
+    const isFirst = i === 0;
+    const isLast  = i === orderedLines.length - 1;
+    const startPosM = isFirst ? 0 : null;
+    const endPosM   = isLast  ? totalM : null;
+    addMarker(line[0],            isFirst ? startIcon : midIcon, isFirst ? '始点' : `中継点${i}`,  startPosM);
+    addMarker(line[line.length-1], isLast ? '🏁'     : midIcon, isLast  ? '終点' : `中継点${i}G`, endPosM);
+  });
+
+  markerLayer.addTo(map);
+}
+
+function toggleMuni() {
+  muniVisible = document.getElementById('muni-toggle-input').checked;
+  if (muniVisible) {
+    if (selectedId) renderMuni(selectedId);
+  } else {
+    clearMuniLayer();
+  }
+}
+
+function clearMuniLayer() {
+  if (muniLayer) { map.removeLayer(muniLayer); muniLayer = null; }
+  // けんきょうきりかえのときはかならずクリア（あとでrenderMuniかrenderLabelOnlyでつくりなおす）
+  if (muniLabelLayer) { map.removeLayer(muniLabelLayer); muniLabelLayer = null; }
+}
+
+function renderMuni(borderId) {
+  clearMuniLayer();
+  if (!muniVisible) return;
+  const munis = muniData[borderId];
+  if (!munis || !munis.length) return;
+
+  const p1c = {}, p2c = {}, colorMap = {}, centerMap = {};
+
+  // muniLengthsのあたらしい名前でcolorMapつくる
+  const lengths = muniLengths[String(borderId)] || [];
+  lengths.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (m.side === 'pref1') {
+      if (!(key in p1c)) p1c[key] = Object.keys(p1c).length;
+      colorMap[key] = getMuniColor('pref1', p1c[key]);
+    } else {
+      if (!(key in p2c)) p2c[key] = Object.keys(p2c).length;
+      colorMap[key] = getMuniColor('pref2', p2c[key]);
+    }
+  });
+
+  // ポリゴン描画
+  muniLayer = L.geoJSON(
+    { type: 'FeatureCollection', features: munis.filter(m => m.geometry).map(m => ({
+        type: 'Feature',
+        properties: { name: m.name, pref: m.pref, side: m.side },
+        geometry: m.geometry
+      }))
+    },
+    {
+      style: f => {
+        const key = f.properties.pref + '_' + f.properties.name;
+        const color = colorMap[key]
+          || Object.entries(colorMap).find(([k]) => k.endsWith('_' + f.properties.name))?.[1]
+          || '#888';
+        return { color, fillColor: color, fillOpacity: 0.25, weight: 6, opacity: 1.0 };
+      },
+      onEachFeature: (f, layer) => {
+        layer.bindTooltip(`<b>${f.properties.name}</b><br>${f.properties.pref}`, { sticky: true });
+        // 中心座標を記録
+        const key = f.properties.pref + '_' + f.properties.name;
+        try {
+          const bounds = layer.getBounds();
+          centerMap[key] = bounds.getCenter();
+        } catch(e) {}
+      }
+    }
+  ).addTo(map);
+
+  // ラベル描画（label_lat/label_lng をつかう）
+  muniLabelLayer = L.layerGroup();
+  const drawnKeys = new Set();
+  munis.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (drawnKeys.has(key)) return;
+    drawnKeys.add(key);
+    // muniCenters（しくちょうそん ぜんたい の じゅうしん）を優先
+    // pref に「県・府・都・道」がない場合は「県」をくわえる
+    const suffixes = ['都', '道', '府', '県'];
+    const prefFull = suffixes.some(s => m.pref.endsWith(s)) ? m.pref : m.pref + '県';
+    const centerKey = prefFull + '_' + m.name;
+    let latlng = null;
+    if (muniCenters[centerKey]) {
+      latlng = muniCenters[centerKey];
+    } else if (m.label_lat != null && m.label_lng != null) {
+      latlng = [m.label_lat, m.label_lng];
+    } else {
+      const c = centerMap[key];
+      if (c) latlng = [c.lat, c.lng];
+    }
+    if (!latlng) return;
+    const color = colorMap[key] || '#fff';
+    L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'muni-label',
+        html: `<span class="muni-label-box" style="background:${color}"></span>${m.name}`,
+        iconSize: null,
+        iconAnchor: [0, 8]
+      }),
+      interactive: false
+    }).addTo(muniLabelLayer);
+  });
+  if (labelVisible) muniLabelLayer.addTo(map);
+
+  // けんきょうせん を いちばんうえ に もってくる
+  if (baseLayer) { map.removeLayer(baseLayer); baseLayer.addTo(map); }
+  if (geojsonLayer) { map.removeLayer(geojsonLayer); geojsonLayer.addTo(map); }
+
+  renderMuniList(borderId, munis, colorMap);
+}
+
+// ラベルだけをhtmlとcolorMapなしでひょうじ（muniVisibleがOFFのとき用）
+function renderLabelOnly(borderId) {
+  if (muniLabelLayer) { map.removeLayer(muniLabelLayer); muniLabelLayer = null; }
+  if (!labelVisible) return;
+  const munis = muniData[borderId];
+  if (!munis || !munis.length) return;
+
+  const colorMap = {};
+  const p1c = {}, p2c = {};
+  const lengths = muniLengths[String(borderId)] || [];
+  lengths.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (m.side === 'pref1') {
+      if (!(key in p1c)) p1c[key] = Object.keys(p1c).length;
+      colorMap[key] = getMuniColor('pref1', p1c[key]);
+    } else {
+      if (!(key in p2c)) p2c[key] = Object.keys(p2c).length;
+      colorMap[key] = getMuniColor('pref2', p2c[key]);
+    }
+  });
+
+  muniLabelLayer = L.layerGroup();
+  const drawnKeys = new Set();
+  const suffixes = ['都', '道', '府', '県'];
+  munis.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (drawnKeys.has(key)) return;
+    drawnKeys.add(key);
+    const prefFull = suffixes.some(s => m.pref.endsWith(s)) ? m.pref : m.pref + '県';
+    const centerKey = prefFull + '_' + m.name;
+    let latlng = null;
+    if (muniCenters[centerKey]) {
+      latlng = muniCenters[centerKey];
+    } else if (m.label_lat != null && m.label_lng != null) {
+      latlng = [m.label_lat, m.label_lng];
+    }
+    if (!latlng) return;
+    const color = colorMap[key] || '#fff';
+    L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'muni-label',
+        html: `<span class="muni-label-box" style="background:${color}"></span>${m.name}`,
+        iconSize: null, iconAnchor: [0, 8]
+      }),
+      interactive: false
+    }).addTo(muniLabelLayer);
+  });
+  muniLabelLayer.addTo(map);
+}
+
+function renderMuniList(borderId, munis, colorMap) {
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  if (!f) return;
+  renderTimeline(borderId, f, colorMap);
+  renderCategory(borderId, f, colorMap);
+}
+
+// タイムラインをpos_mのちかいこうもくにスクロールさせる
+let consolidateLayer = null;
+function consolidateIcons() {
+  if (consolidateLayer) { map.removeLayer(consolidateLayer); consolidateLayer = null; }
+
+  // まず、まえにかくしたマーカーをもとにもどす
+  (window._markerItems || []).forEach(item => {
+    if (item.leafletMarker) item.leafletMarker.setOpacity(1);
+  });
+  (window._peakItems || []).forEach(item => {
+    if (item.leafletMarker) item.leafletMarker.setOpacity(1);
+  });
+
+  // マーカー＋さんみゃくをあつめる（トグルじょうたいをみる）
+  const allItems = [
+    ...(markerVisible ? (window._markerItems || []) : []),
+    ...(peaksVisible  ? (window._peakItems   || []) : []),
+  ];
+
+  if (!allItems.length) return;
+
+  // ちずのきょり（m）
+  function latlngDist(a, b) {
+    const dx = (a.lng - b.lng) * 111000 * Math.cos(a.lat * Math.PI / 180);
+    const dy = (a.lat - b.lat) * 111000;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  const THRESH = 50;
+  const used = new Array(allItems.length).fill(false);
+  const groups = [];
+
+  for (let i = 0; i < allItems.length; i++) {
+    if (used[i]) continue;
+    const group = [allItems[i]];
+    used[i] = true;
+    for (let j = i+1; j < allItems.length; j++) {
+      if (used[j]) continue;
+      if (latlngDist(allItems[i], allItems[j]) <= THRESH) {
+        group.push(allItems[j]);
+        used[j] = true;
+      }
+    }
+    if (group.length > 1) groups.push(group);
+  }
+
+  if (!groups.length) return;
+
+  consolidateLayer = L.layerGroup();
+
+  groups.forEach(group => {
+    // グループになったもとのマーカーをかくす
+    group.forEach(item => {
+      if (item.leafletMarker) item.leafletMarker.setOpacity(0);
+    });
+
+    const lat = group[0].lat;
+    const lng = group[0].lng;
+
+    // うえだん：始点・終点、しただん：さんみゃく
+    const topItems    = group.filter(item => item.kind === 'marker');
+    const bottomItems = group.filter(item => item.kind === 'peak');
+
+    const makeRow = (items) => items.map(item =>
+      `<div style="display:inline-flex;align-items:center;justify-content:center;width:${item.iconW}px;height:${item.iconW}px;">${item.iconHtml}</div>`
+    ).join('');
+
+    const topW    = topItems.reduce((s, i) => s + i.iconW, 0);
+    const bottomW = bottomItems.reduce((s, i) => s + i.iconW, 0);
+    const totalW  = Math.max(topW, bottomW, 24);
+
+    let html = '';
+    if (topItems.length && bottomItems.length) {
+      html = `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;background:rgba(0,0,0,0.5);border-radius:4px;padding:1px 2px;">
+        <div style="display:flex;gap:1px;">${makeRow(topItems)}</div>
+        <div style="display:flex;gap:1px;">${makeRow(bottomItems)}</div>
+      </div>`;
+    } else {
+      const items = topItems.length ? topItems : bottomItems;
+      html = `<div style="display:flex;gap:1px;background:rgba(0,0,0,0.5);border-radius:4px;padding:1px 2px;">${makeRow(items)}</div>`;
+    }
+
+    const iconH = (topItems.length && bottomItems.length) ? 52 : 28;
+    const tooltipHtml = group.map(item => item.tooltip).join('<hr style="margin:3px 0;border-color:#555;">');
+    const posM = group.find(i => i.pos_m != null)?.pos_m;
+
+    L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: html,
+        iconSize: [totalW + 4, iconH],
+        iconAnchor: [(totalW + 4) / 2, iconH / 2]
+      })
+    }).bindTooltip(tooltipHtml, { sticky: true, maxWidth: 250 })
+      .on('click', () => { if (posM != null) scrollTimelineToPos(posM); })
+      .addTo(consolidateLayer);
+  });
+
+  consolidateLayer.addTo(map);
+}
+
+function scrollTimelineToPos(pos_m) {
+  // タイムラインタブをひょうじ
+  const timelineTab = document.querySelector('.tab-btn[data-tab="timeline"]');
+  if (timelineTab) timelineTab.click();
+
+  // すこしまってからスクロール（タブきりかえのひょうじをまつ）
+  setTimeout(() => {
+    const container = document.getElementById('tab-content-timeline');
+    if (!container) return;
+    const items = container.querySelectorAll('[data-pos]');
+    let bestEl = null;
+    let bestDist = Infinity;
+    items.forEach(el => {
+      const elPos = parseInt(el.dataset.pos);
+      const dist = Math.abs(elPos - pos_m);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestEl = el;
+      }
+    });
+    if (bestEl) {
+      bestEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // すこしハイライトしてわかりやすくする
+      bestEl.style.transition = 'background 0.3s';
+      bestEl.style.background = '#3a4a6a';
+      setTimeout(() => { bestEl.style.background = ''; }, 1000);
+    }
+  }, 100);
+}
+
+function fmtKm(m) {
+  return (m / 1000).toFixed(3) + 'km';
+}
+
+function renderTimeline(borderId, f, colorMap) {
+  const lengths = muniLengths[String(borderId)] || [];
+  const peaks   = peaksData[String(borderId)] || [];
+  const rails   = railData[String(borderId)] || [];
+
+  const items = [];
+
+  // 始点
+  items.push({ pos_m: 0, kind: 'start' });
+
+  // 市区町村のはいる・でる（50m以下のすきまはがっぺい、それ以上は①②）
+  const MERGE_THRESHOLD = 50;
+  const NUMS = ['①','②','③','④','⑤'];
+  lengths.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    const color = colorMap[key] || '#888';
+    const rawSegs = m.segments || [{ start_m: m.start_m, end_m: m.end_m }];
+
+    // 50m以下のすきまはがっぺい
+    const mergedSegs = [];
+    for (const seg of rawSegs) {
+      const last = mergedSegs[mergedSegs.length - 1];
+      if (last && (seg.start_m - last.end_m) <= MERGE_THRESHOLD) {
+        last.end_m = seg.end_m;
+      } else {
+        mergedSegs.push({ start_m: seg.start_m, end_m: seg.end_m });
+      }
+    }
+
+    const useNum = mergedSegs.length >= 2;
+    mergedSegs.forEach((seg, i) => {
+      const label = m.name + (useNum ? NUMS[i] : '') + '（' + m.pref + '）';
+      const len_m = seg.end_m - seg.start_m;
+      // muniCentersからlat/lngをとる
+      const suffixes = ['都', '道', '府', '県'];
+      const prefFull = suffixes.some(s => m.pref.endsWith(s)) ? m.pref : m.pref + '県';
+      const centerKey = prefFull + '_' + m.name;
+      const center = muniCenters[centerKey];
+      const lat = center ? center[0] : null;
+      const lng = center ? center[1] : null;
+      items.push({ pos_m: seg.start_m, kind: 'muni_in',  label, color, lat, lng });
+      items.push({ pos_m: seg.end_m,   kind: 'muni_out', label, color, len_m, lat, lng });
+    });
+  });
+
+  // 終点（さきにせんげんしてpos_mフィルタにつかう）
+  const totalM = f.properties.length_km * 1000;
+
+  // 山岳
+  peaks.forEach(pk => {
+    if (pk.pos_m != null && pk.pos_m <= totalM) items.push({ pos_m: pk.pos_m, kind: 'peak', name: pk.name, ele: pk.ele, lat: pk.lat, lng: pk.lng, overrideKey: `peak_${pk.name}`, originalLabel: pk.name, icon: '⛰️' });
+  });
+
+  // 鉄道
+  rails.forEach(r => {
+    if (r.pos_m != null && r.pos_m <= totalM) items.push({ pos_m: r.pos_m, kind: r.type === 'station' ? 'station' : 'rail', name: r.name, icon: r.icon, line: r.line, company: r.company, lat: r.lat, lng: r.lng, overrideKey: `rail_${r.name}_${r.pos_m}`, originalLabel: r.name });
+  });
+
+  // 道路
+  const roads = roadData[String(borderId)] || [];
+  roads.forEach(r => {
+    if (r.pos_m != null && r.pos_m <= totalM) items.push({ pos_m: r.pos_m, kind: 'road', icon: r.icon, label: r.label, lat: r.lat, lng: r.lng, road_type: r.road_type, overrideKey: `road_${r.label}_${r.pos_m}`, originalLabel: r.label });
+  });
+
+  // はしりょう
+  const bridges = bridgeData[String(borderId)] || [];
+  bridges.forEach(b => {
+    if (b.pos_m != null && b.pos_m <= totalM) items.push({ pos_m: b.pos_m, kind: 'bridge', name: b.name, length_m: b.length_m, route: b.route, year: b.year, manager: b.manager, lat: b.lat, lng: b.lng, overrideKey: `bridge_${b.name}_${b.pos_m}`, originalLabel: b.name });
+  });
+
+  // トンネル
+  const tunnels = tunnelData[String(borderId)] || [];
+  tunnels.forEach(t => {
+    if (t.pos_m != null && t.pos_m <= totalM) items.push({ pos_m: t.pos_m, kind: 'tunnel', name: t.name, length_m: t.length_m, route: t.route, year: t.year, manager: t.manager, lat: t.lat, lng: t.lng, overrideKey: `tunnel_${t.name}_${t.pos_m}`, originalLabel: t.name });
+  });
+
+  // かわ
+  if (riverVisible) {
+    const rivers = riverData[String(borderId)] || [];
+    rivers.forEach(r => {
+      if (r.pos_m != null && r.pos_m <= totalM) {
+        if (riverSegVisible && r.segments && r.segments.length > 1) {
+          // さいしょのセグメントの入点
+          const first = r.segments[0];
+          const last  = r.segments[r.segments.length - 1];
+          if (first.pos_m <= totalM) items.push({
+            pos_m: first.pos_m, kind: 'river_seg',
+            name: r.name, type: r.type,
+            pos_end_m: first.pos_end_m,
+            lat: first.lat, lng: first.lng,
+            seg_index: 1, seg_total: r.segments.length,
+            label_type: 'in',
+            overrideKey: `river_${r.name}_${first.pos_m}`,
+            originalLabel: r.name,
+          });
+          // さいごのセグメントの出点
+          if (last.pos_end_m <= totalM) items.push({
+            pos_m: last.pos_end_m, kind: 'river_seg',
+            name: r.name, type: r.type,
+            pos_end_m: last.pos_end_m,
+            lat: last.lat_end, lng: last.lng_end,
+            seg_index: r.segments.length, seg_total: r.segments.length,
+            label_type: 'out',
+            overrideKey: `river_${r.name}_${last.pos_end_m}`,
+            originalLabel: r.name,
+          });
+        } else {
+          // まとめてひょうじ（入点と出点の2こうもく）
+          items.push({
+            pos_m: r.pos_m, kind: 'river',
+            name: r.name, type: r.type,
+            pos_end_m: r.pos_end_m,
+            lat: r.lat, lng: r.lng,
+            segments: r.segments,
+            label_type: 'in',
+            overrideKey: `river_${r.name}_${r.pos_m}`,
+            originalLabel: r.name,
+          });
+          // へいこうするかわは出点もつける
+          if (r.type === 'parallel' && r.pos_end_m && r.lat_end) {
+            items.push({
+              pos_m: r.pos_end_m, kind: 'river',
+              name: r.name, type: r.type,
+              pos_end_m: r.pos_end_m,
+              lat: r.lat_end, lng: r.lng_end,
+              segments: r.segments,
+              label_type: 'out',
+              overrideKey: `river_${r.name}_${r.pos_end_m}_out`,
+              originalLabel: r.name,
+            });
+          }
+        }
+      }
+    });
+  }
+
+  // こしょう
+  if (lakeVisible) {
+    const lakes = lakeData[String(borderId)] || [];
+    lakes.forEach(l => {
+      if (l.pos_m != null && l.pos_m <= totalM) {
+        items.push({
+          pos_m: l.pos_m, kind: 'lake',
+          name: l.name,
+          lat: l.lat, lng: l.lng,
+          overrideKey: `lake_${l.name}_${l.pos_m}`,
+          originalLabel: l.name,
+        });
+      }
+    });
+  }
+
+  // ダム
+  if (damVisible) {
+    const dams = damData[String(borderId)] || [];
+    dams.forEach(d => {
+      if (d.pos_m != null && d.pos_m <= totalM) {
+        items.push({
+          pos_m: d.pos_m, kind: 'dam',
+          name: d.name,
+          river: d.river,
+          lat: d.lat, lng: d.lng,
+          overrideKey: `dam_${d.name}_${d.pos_m}`,
+          originalLabel: d.name,
+        });
+      }
+    });
+  }
+
+  // せかいいさん
+  if (heritageVisible) {
+    const heritages = heritageData[String(borderId)] || [];
+    heritages.forEach(h => {
+      if (h.pos_m != null && h.pos_m <= totalM) {
+        const resolvedName = resolveHeritageName(h);
+        // 入点
+        items.push({
+          pos_m: h.pos_m, kind: 'heritage',
+          name: resolvedName,
+          heritage_kind: h.kind,
+          lat: h.lat, lng: h.lng,
+          pos_end_m: h.pos_end_m || null,
+          is_entry: true,
+          overrideKey: `heritage_${h.name}_${h.pos_m}`,
+          originalLabel: resolvedName,
+        });
+        // 出点（pos_end_mがあるばあい）
+        if (h.pos_end_m && h.lat_end && h.lng_end && h.pos_end_m <= totalM) {
+          items.push({
+            pos_m: h.pos_end_m, kind: 'heritage',
+            name: resolvedName,
+            heritage_kind: h.kind,
+            lat: h.lat_end, lng: h.lng_end,
+            pos_end_m: h.pos_end_m,
+            is_entry: false,
+            overrideKey: `heritage_${h.name}_${h.pos_end_m}_out`,
+            originalLabel: resolvedName,
+          });
+        }
+      }
+    });
+  }
+
+  items.push({ pos_m: totalM, kind: 'end' });
+
+  // へんしゅうデータをitemsについか
+  const edits = editData[String(borderId)] || [];
+  // overridesをマップにする
+  const overrideMap = {};
+  edits.filter(e => e.kind === 'override').forEach(e => { overrideMap[e.overrideKey] = e; });
+
+  // overridesをきそんitemsにてきよう
+  const filteredItems = items.filter(it => {
+    if (!it.overrideKey) return true;
+    const ov = overrideMap[it.overrideKey];
+    if (ov && ov.hidden) {
+      if (editMode) {
+        // へんしゅうモードではひひょうじこうもくをうすじ・とりけしせんでのこす
+        it._hidden = true;
+      } else {
+        return false;
+      }
+    }
+    if (ov && ov.displayLabel) it.displayLabel = ov.displayLabel;
+    return true;
+  });
+
+  edits.filter(e => e.kind === 'edit' && !e.hidden).forEach((e, i) => {
+    filteredItems.push({ ...e, kind: 'edit', editIndex: i });
+  });
+
+  filteredItems.sort((a, b) => a.pos_m - b.pos_m);
+
+  const isV = f.properties.orientation === 'vertical';
+  const startIcon = isV ? '⬇️' : '⬅️';
+
+  const rows = filteredItems.map(it => {
+    const km = fmtKm(it.pos_m);
+    const displayName = it.displayLabel || it.label || it.name || '';
+    const hiddenStyle = it._hidden ? 'opacity:0.35;text-decoration:line-through;' : '';
+    const existingEditBtn = (editMode && it.overrideKey)
+      ? `<button onclick="event.stopPropagation();openExistingEditModal(${JSON.stringify(it).replace(/"/g,'&quot;')})" style="margin-left:auto;background:none;border:none;color:#7eb8f7;cursor:pointer;font-size:11px;flex-shrink:0;opacity:1;text-decoration:none;">✏️</button>`
+      : '';
+    const editBtns = editMode && it.kind === 'edit'
+      ? `<span style="margin-left:auto;display:flex;gap:4px;">
+          <button onclick="event.stopPropagation();openEditModal(${borderId},${it.editIndex})" style="background:none;border:none;color:#7eb8f7;cursor:pointer;font-size:11px;">✏️</button>
+          <button onclick="event.stopPropagation();deleteEditItem(${borderId},${it.editIndex})" style="background:none;border:none;color:#e07070;cursor:pointer;font-size:11px;">🗑️</button>
+         </span>`
+      : '';
+    switch (it.kind) {
+      case 'start':
+        return `<div class="timeline-item"><span class="timeline-km">${km}</span><span class="timeline-icon">${startIcon}</span><span class="timeline-label">始点</span></div>`;
+      case 'end':
+        return `<div class="timeline-item"><span class="timeline-km">${km}</span><span class="timeline-icon">🏁</span><span class="timeline-label">終点</span></div>`;
+      case 'muni_in':
+        return `<div class="timeline-item${it.lat ? ' clickable' : ''}" ${it.lat ? `onclick="map.setView([${it.lat},${it.lng}],13)"` : ''}><span class="timeline-km">${km}</span><span class="timeline-icon">⬇️</span><span style="display:inline-block;width:10px;height:10px;background:${it.color};border-radius:2px;flex-shrink:0;"></span><span class="timeline-label">${displayName}</span></div>`;
+      case 'muni_out':
+        return `<div class="timeline-item${it.lat ? ' clickable' : ''}" ${it.lat ? `onclick="map.setView([${it.lat},${it.lng}],13)"` : ''}><span class="timeline-km">${km}</span><span class="timeline-icon">⬆️</span><span style="display:inline-block;width:10px;height:10px;background:${it.color};border-radius:2px;flex-shrink:0;"></span><span class="timeline-label">${displayName}</span><span class="timeline-sub">　${fmtKm(it.len_m)}</span></div>`;
+      case 'peak':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">⛰️</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.ele ? '（' + it.ele + 'm）' : ''}</span>${existingEditBtn}</div>`;
+      case 'rail':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">${it.icon}</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.company ? '（' + it.company + '）' : ''}</span>${existingEditBtn}</div>`;
+      case 'station':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">🚉</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.line ? '（' + it.line + '）' : ''}</span>${existingEditBtn}</div>`;
+      case 'road':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="display:inline-block;width:20px;height:20px;${hiddenStyle}">${getRoadSvgIcon(it.road_type)}</span><span class="timeline-label" style="${hiddenStyle}">${displayName}</span>${existingEditBtn}</div>`;
+      case 'bridge':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">🌉</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.length_m ? '（' + it.length_m + 'm）' : ''}</span>${existingEditBtn}</div>`;
+      case 'tunnel':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">🚇</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.length_m ? '（' + it.length_m + 'm）' : ''}</span>${existingEditBtn}</div>`;
+      case 'river': {
+        const startKm = `${(it.pos_m/1000).toFixed(3)}km`;
+        const endKm   = it.pos_end_m ? `${(it.pos_end_m/1000).toFixed(3)}km` : '';
+        const segInfo = it.segments && it.segments.length > 1 ? `（${it.segments.length}区間）` : '';
+        if (it.label_type === 'out') {
+          return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">〜${endKm}</span><span class="timeline-icon" style="${hiddenStyle}">🌊</span><span class="timeline-label" style="${hiddenStyle}">${displayName}（出）${segInfo}</span>${existingEditBtn}</div>`;
+        } else {
+          return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${startKm}〜</span><span class="timeline-icon" style="${hiddenStyle}">🌊</span><span class="timeline-label" style="${hiddenStyle}">${displayName}（入）${segInfo}</span>${existingEditBtn}</div>`;
+        }
+      }
+      case 'river_seg': {
+        const label = it.label_type === 'out'
+          ? `${displayName}（出・${it.seg_total}区間）`
+          : `${displayName}（入・${it.seg_total}区間）`;
+        const endKm = it.pos_end_m ? `〜${(it.pos_end_m/1000).toFixed(3)}km` : '';
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;padding-left:8px;border-left:2px solid #3a9ad9;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">🌊</span><span class="timeline-label" style="${hiddenStyle}">${label}</span>${existingEditBtn}</div>`;
+      }
+      case 'lake':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">💧</span><span class="timeline-label" style="${hiddenStyle}">${displayName}</span>${existingEditBtn}</div>`;
+      case 'dam':
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">🔲</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${it.river ? '（' + it.river + '）' : ''}</span>${existingEditBtn}</div>`;
+      case 'heritage': {
+        const icon = it.heritage_kind === 'nature' ? '🌳' : '🏯';
+        const dirMark = it.pos_end_m
+          ? (it.is_entry ? '⬇️' : '⬆️')
+          : '';
+        const rangeStr = it.pos_end_m
+          ? ` <span style="color:#888;font-size:10px;">${(it.pos_m/1000).toFixed(1)}km〜${(it.pos_end_m/1000).toFixed(1)}km</span>`
+          : '';
+        return `<div class="timeline-item clickable" data-pos="${it.pos_m}" onclick="map.setView([${it.lat},${it.lng}],14)" style="display:flex;align-items:center;"><span class="timeline-km" style="${hiddenStyle}">${km}</span><span class="timeline-icon" style="${hiddenStyle}">${icon}${dirMark}</span><span class="timeline-label" style="${hiddenStyle}">${displayName}${rangeStr}</span>${existingEditBtn}</div>`;
+      }
+      case 'edit':
+        return `<div class="timeline-item${it.lat ? ' clickable' : ''}" ${it.lat ? `onclick="map.setView([${it.lat},${it.lng}],14)"` : ''} style="border-left:3px solid #dc143c;padding-left:4px;display:flex;align-items:center;background:${editMode ? 'rgba(220,20,60,0.07)' : 'transparent'};"><span class="timeline-km" style="color:${editMode ? '#dc143c' : '#7eb8f7'};">${km}</span><span class="timeline-icon">${it.icon}</span><span class="timeline-label" style="color:${editMode ? '#f08080' : '#dde1e7'};">${it.displayLabel || it.label}${it.note ? ' <span style="color:#888;font-size:10px;">（'+it.note+'）</span>' : ''}</span>${editBtns}</div>`;
+    }
+    return '';
+  }).join('');
+
+  const addBtn = editMode
+    ? `<div style="padding:6px 0;"><button onclick="openAddModal(null,null,null)" style="width:100%;background:#2e3140;border:1px dashed #4a7ebb;color:#7eb8f7;padding:6px;border-radius:4px;cursor:pointer;font-size:11px;">＋ こうもくをついか</button></div>`
+    : '';
+
+  document.getElementById('tab-content-timeline').innerHTML = addBtn + (rows || '<div style="color:#555;font-size:11px;">データなし</div>');
+}
+
+function renderCategory(borderId, f, colorMap) {
+  const lengths = muniLengths[String(borderId)] || [];
+  const peaks   = peaksData[String(borderId)] || [];
+  const rails   = railData[String(borderId)] || [];
+
+  const makeSection = (title, rows) => {
+    if (!rows.length) return '';
+    return `<div class="category-section">
+      <div class="category-title">${title}</div>
+      ${rows.join('')}
+    </div>`;
+  };
+
+  const suffixes = ['都', '道', '府', '県'];
+  const p1 = lengths.filter(m => m.side === 'pref1').map(m => {
+    const key = m.pref + '_' + m.name;
+    const color = colorMap[key] || '#888';
+    const prefFull = suffixes.some(s => m.pref.endsWith(s)) ? m.pref : m.pref + '県';
+    const center = muniCenters[prefFull + '_' + m.name];
+    const onclick = center ? `onclick="map.setView([${center[0]},${center[1]}],13)"` : '';
+    return `<div class="category-item${center ? ' clickable' : ''}" ${onclick}><span class="category-name"><span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;"></span>${m.name}</span><span class="category-km">${m.length_km.toFixed(3)} km</span></div>`;
+  });
+  const p2 = lengths.filter(m => m.side === 'pref2').map(m => {
+    const key = m.pref + '_' + m.name;
+    const color = colorMap[key] || '#888';
+    const prefFull = suffixes.some(s => m.pref.endsWith(s)) ? m.pref : m.pref + '県';
+    const center = muniCenters[prefFull + '_' + m.name];
+    const onclick = center ? `onclick="map.setView([${center[0]},${center[1]}],13)"` : '';
+    return `<div class="category-item${center ? ' clickable' : ''}" ${onclick}><span class="category-name"><span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;"></span>${m.name}</span><span class="category-km">${m.length_km.toFixed(3)} km</span></div>`;
+  });
+  const pkRows = peaks.map(pk =>
+    `<div class="category-item clickable" onclick="map.setView([${pk.lat},${pk.lng}],14)"><span class="category-name">⛰️ ${pk.name}${pk.ele ? ' ' + pk.ele + 'm' : ''}</span><span class="category-km">${pk.pos_m != null ? fmtKm(pk.pos_m) + '地点' : ''}</span></div>`
+  );
+  const rlRows = rails.map(r =>
+    `<div class="category-item clickable" onclick="map.setView([${r.lat},${r.lng}],14)"><span class="category-name">${r.icon || (r.type === 'station' ? '🚉' : '🛤️')} ${r.name}</span><span class="category-km">${r.pos_m != null ? fmtKm(r.pos_m) + '地点' : ''}</span></div>`
+  );
+  const roads = roadData[String(borderId)] || [];
+  const rdRows = roads.map(r =>
+    `<div class="category-item clickable" onclick="map.setView([${r.lat},${r.lng}],14)"><span class="category-name" style="display:inline-flex;align-items:center;gap:4px;">${getRoadSvgIcon(r.road_type)} ${r.label}</span><span class="category-km">${r.pos_m != null ? fmtKm(r.pos_m) + '地点' : ''}</span></div>`
+  );
+
+  // カスタムこうもく（editDataのkind=editのもの）
+  const edits = (editData[String(borderId)] || []).filter(e => e.kind === 'edit');
+  const customRows = edits.map((e, i) => {
+    const displayLabel = e.displayLabel || e.label;
+    const onclick = e.lat ? `onclick="map.setView([${e.lat},${e.lng}],14)"` : '';
+    const editStyle = editMode ? 'border-left:3px solid #dc143c;padding-left:4px;background:rgba(220,20,60,0.07);' : 'border-left:3px solid #dc143c;padding-left:4px;';
+    const labelColor = editMode ? 'color:#f08080;' : '';
+    return `<div class="category-item clickable" ${onclick} style="${editStyle}"><span class="category-name" style="${labelColor}">${e.icon} ${displayLabel}</span><span class="category-km" style="${editMode ? 'color:#dc143c;' : ''}">${e.pos_m != null ? fmtKm(e.pos_m) + '地点' : ''}</span></div>`;
+  });
+
+  document.getElementById('tab-content-category').innerHTML =
+    makeSection(`▶ 市区町村（${f.properties.pref1}がわ）`, p1) +
+    makeSection(`▶ 市区町村（${f.properties.pref2}がわ）`, p2) +
+    makeSection('▶ ⛰️ 山岳', pkRows) +
+    makeSection('▶ 🛤️🚄🚉 鉄道', rlRows) +
+    makeSection('▶ 🛣️ 道路', rdRows) +
+    makeSection('▶ ✏️ カスタム', customRows) ||
+    '<div style="color:#555;font-size:11px;">データなし</div>';
+}
+
+// ========================================
+// へんしゅうモード
+// ========================================
+let editMode = false;
+let editData = {}; // { borderId: [ {kind, icon, label, pos_m, lat, lng, note, category} ] }
+let modalEditIndex = null; // へんしゅうちゅうのindex（null=あたらしいついか）
+let modalClickLatLng = null; // ちずクリックのざひょう
+
+const EDIT_STORAGE_KEY = 'kenkyou_edits_v1';
+
+// localStorageからよみこむ
+function loadEditsFromStorage() {
+  try {
+    const raw = localStorage.getItem(EDIT_STORAGE_KEY);
+    if (raw) editData = JSON.parse(raw);
+  } catch(e) {}
+}
+
+// localStorageにほぞん
+function saveEditsToStorage() {
+  localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(editData));
+}
+
+// エクスポート
+// タイムランのデータをあつめる
+function collectTimelineData() {
+  if (!selectedId) return [];
+  const f = allFeatures.find(f => f.properties.id === selectedId);
+  if (!f) return [];
+  const p = f.properties;
+  const colorMap = buildColorMap(selectedId);
+  const overrideMap = buildOverrideMap(selectedId);
+  const lengths = muniLengths[String(selectedId)] || [];
+  const peaks = peaksData[String(selectedId)] || [];
+  const rails = railData[String(selectedId)] || [];
+  const roads = roadData[String(selectedId)] || [];
+  const edits = (editData[String(selectedId)] || []).filter(e => e.kind === 'edit' && !e.hidden);
+
+  const items = [];
+  const MERGE_THRESHOLD = 50;
+  const NUMS = ['①','②','③','④','⑤'];
+
+  items.push({ pos_m: 0, kind: 'start', label: '始点', category: '' });
+
+  lengths.forEach(m => {
+    const rawSegs = m.segments || [{ start_m: m.start_m, end_m: m.end_m }];
+    const mergedSegs = [];
+    for (const seg of rawSegs) {
+      const last = mergedSegs[mergedSegs.length - 1];
+      if (last && (seg.start_m - last.end_m) <= MERGE_THRESHOLD) {
+        last.end_m = seg.end_m;
+      } else {
+        mergedSegs.push({ start_m: seg.start_m, end_m: seg.end_m });
+      }
+    }
+    const useNum = mergedSegs.length >= 2;
+    mergedSegs.forEach((seg, i) => {
+      const label = m.name + (useNum ? NUMS[i] : '') + '（' + m.pref + '）';
+      items.push({ pos_m: seg.start_m, kind: 'muni_in',  label, category: '市区町村', pref: m.pref, side: m.side });
+      items.push({ pos_m: seg.end_m,   kind: 'muni_out', label, category: '市区町村', len_m: seg.end_m - seg.start_m, pref: m.pref, side: m.side });
+    });
+  });
+
+  peaks.forEach(pk => {
+    const ov = overrideMap[`peak_${pk.name}`];
+    if (ov && ov.hidden) return;
+    const name = (ov && ov.displayLabel) || pk.name;
+    items.push({ pos_m: pk.pos_m, kind: 'peak', label: name + (pk.ele ? `（${pk.ele}m）` : ''), category: '山岳' });
+  });
+
+  rails.forEach(r => {
+    const ov = overrideMap[`rail_${r.name}_${r.pos_m}`];
+    if (ov && ov.hidden) return;
+    const name = (ov && ov.displayLabel) || r.name;
+    items.push({ pos_m: r.pos_m, kind: r.type === 'station' ? 'station' : 'rail', label: name, category: '鉄道', company: r.company });
+  });
+
+  roads.forEach(r => {
+    const ov = overrideMap[`road_${r.label}_${r.pos_m}`];
+    if (ov && ov.hidden) return;
+    const name = (ov && ov.displayLabel) || r.label;
+    items.push({ pos_m: r.pos_m, kind: 'road', label: name, category: '道路', road_type: r.road_type });
+  });
+
+  edits.forEach(e => {
+    items.push({ pos_m: e.pos_m, kind: 'edit', label: e.displayLabel || e.label, category: e.category || 'カスタム', note: e.note });
+  });
+
+  items.push({ pos_m: f.properties.length_km * 1000, kind: 'end', label: '終点', category: '' });
+  items.sort((a, b) => a.pos_m - b.pos_m);
+  return { items, p };
+}
+
+function exportTimelineCSV() {
+  if (!selectedId) { alert('けんきょうをせんたくしてクダサイ'); return; }
+  const { items, p } = collectTimelineData();
+  const header = 'pos_m,km,しゅるい,カテゴリ,なまえ,メモ';
+  const rows = items.map(it => {
+    const km = (it.pos_m / 1000).toFixed(3);
+    const type = { start:'始点', end:'終点', muni_in:'⬇️入る', muni_out:'⬆️出る', peak:'山岳', rail:'鉄道', station:'駅', road:'道路', edit:'カスタム' }[it.kind] || it.kind;
+    const note = it.note || '';
+    return [it.pos_m, km, type, it.category, `"${(it.label||'').replace(/"/g,'""')}"`, `"${note.replace(/"/g,'""')}"`].join(',');
+  });
+  const csv = '\uFEFF' + header + '\n' + rows.join('\n');
+  const now = new Date();
+  const ts = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kenkyou_${p.pref1}_${p.pref2}_${ts}.csv`;
+  a.click();
+}
+
+function exportTimelineText() {
+  if (!selectedId) { alert('けんきょうをせんたくしてクダサイ'); return; }
+  const { items, p } = collectTimelineData();
+  const lines = [`${p.pref1} × ${p.pref2}（${p.length_km}km）`, ''];
+  items.forEach(it => {
+    const km = (it.pos_m / 1000).toFixed(3) + 'km';
+    const icon = { start:'⬅️', end:'🏁', muni_in:'⬇️', muni_out:'⬆️', peak:'⛰️', rail:'🛤️', station:'🚉', road:'🛣️', edit:'📍' }[it.kind] || '　';
+    const note = it.note ? `（${it.note}）` : '';
+    const len = it.len_m ? `　${(it.len_m/1000).toFixed(3)}km` : '';
+    lines.push(`${km.padStart(10)} ${icon} ${it.label || ''}${len}${note}`);
+  });
+  const now = new Date();
+  const ts = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0');
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kenkyou_${p.pref1}_${p.pref2}_${ts}.txt`;
+  a.click();
+}
+
+function exportEdits() {
+  const now = new Date();
+  const ts = now.getFullYear().toString()
+    + String(now.getMonth()+1).padStart(2,'0')
+    + String(now.getDate()).padStart(2,'0')
+    + String(now.getHours()).padStart(2,'0')
+    + String(now.getMinutes()).padStart(2,'0')
+    + String(now.getSeconds()).padStart(2,'0');
+  const blob = new Blob([JSON.stringify(editData, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kenkyou_edits_${ts}.json`;
+  a.click();
+}
+
+// インポート
+function importEdits(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      editData = JSON.parse(e.target.result);
+      saveEditsToStorage();
+      if (selectedId) renderTimeline(selectedId, allFeatures.find(f=>f.properties.id===selectedId), {});
+      alert('インポートしましタ！');
+    } catch(err) {
+      alert('JSONのよみこみにしっぱいしましタ');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// へんしゅうモードのON/OFF
+function toggleEditMode() {
+  editMode = !editMode;
+  const btn = document.getElementById('edit-mode-btn');
+  const expBtn = document.getElementById('export-btn');
+  const impBtn = document.getElementById('import-btn');
+  if (editMode) {
+    btn.style.background = '#4a7ebb';
+    btn.style.color = '#fff';
+    btn.textContent = '✏️ へんしゅうちゅう';
+    expBtn.style.display = '';
+    impBtn.style.display = '';
+    map.doubleClickZoom.disable();
+  } else {
+    btn.style.background = '#2e3140';
+    btn.style.color = '#aac4e8';
+    btn.textContent = '✏️ へんしゅうモード';
+    expBtn.style.display = 'none';
+    impBtn.style.display = 'none';
+    map.doubleClickZoom.enable();
+  }
+  // タイムランをさいひょうじ
+  if (selectedId) {
+    const f = allFeatures.find(f=>f.properties.id===selectedId);
+    const colorMap = buildColorMap(selectedId);
+    renderTimeline(selectedId, f, colorMap);
+  }
+}
+
+// けんきょうラインへのとうえいでpos_mをけいさん
+function calcPosMFromLatLng(borderId, lat, lng) {
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  if (!f) return 0;
+  const geom = f.geometry;
+  let coords = [];
+  if (geom.type === 'LineString') coords = geom.coordinates;
+  else geom.coordinates.forEach(l => coords = coords.concat(l));
+
+  let minDist = Infinity, bestPosM = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
+    const dx = x2-x1, dy = y2-y1;
+    const len2 = dx*dx + dy*dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((lng-x1)*dx+(lat-y1)*dy)/len2)) : 0;
+    const nx = x1+t*dx, ny = y1+t*dy;
+    const dist = Math.sqrt((lng-nx)**2+(lat-ny)**2);
+    if (dist < minDist) {
+      minDist = dist;
+      let totalM = 0;
+      for (let j = 0; j < i; j++) {
+        const [ax,ay] = coords[j], [bx,by] = coords[j+1];
+        totalM += Math.sqrt((bx-ax)**2+(by-ay)**2) * 111000;
+      }
+      totalM += t * Math.sqrt(dx*dx+dy*dy) * 111000;
+      bestPosM = totalM;
+    }
+  }
+  return Math.round(bestPosM);
+}
+
+// けんきょうラインのいちばんちかいてんのざひょうをかえす
+function snapToLine(borderId, lat, lng) {
+  const f = allFeatures.find(f => f.properties.id === borderId);
+  if (!f) return {lat, lng};
+  const geom = f.geometry;
+  let coords = [];
+  if (geom.type === 'LineString') coords = geom.coordinates;
+  else geom.coordinates.forEach(l => coords = coords.concat(l));
+
+  let minDist = Infinity, snapLat = lat, snapLng = lng;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [x1,y1] = coords[i], [x2,y2] = coords[i+1];
+    const dx = x2-x1, dy = y2-y1;
+    const len2 = dx*dx + dy*dy;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((lng-x1)*dx+(lat-y1)*dy)/len2)) : 0;
+    const nx = x1+t*dx, ny = y1+t*dy;
+    const dist = Math.sqrt((lng-nx)**2+(lat-ny)**2);
+    if (dist < minDist) { minDist = dist; snapLat = ny; snapLng = nx; }
+  }
+  return {lat: snapLat, lng: snapLng};
+}
+
+function buildOverrideMap(borderId) {
+  const overrideMap = {};
+  (editData[String(borderId)] || []).filter(e => e.kind === 'override').forEach(e => {
+    overrideMap[e.overrideKey] = e;
+  });
+  return overrideMap;
+}
+
+function buildColorMap(borderId) {
+  const colorMap = {};
+  const p1c = {}, p2c = {};
+  const lengths = muniLengths[String(borderId)] || [];
+  lengths.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (m.side === 'pref1') {
+      if (!(key in p1c)) p1c[key] = Object.keys(p1c).length;
+      colorMap[key] = getMuniColor('pref1', p1c[key]);
+    } else {
+      if (!(key in p2c)) p2c[key] = Object.keys(p2c).length;
+      colorMap[key] = getMuniColor('pref2', p2c[key]);
+    }
+  });
+  return colorMap;
+}
+
+// モーダルをひらく（あたらしいついか）
+function openAddModal(posM, lat, lng) {
+  modalEditIndex = null;
+  modalExistingItem = null;
+  modalClickLatLng = lat != null ? {lat, lng} : null;
+  // lat/lngがあってpos_mがnullならけいさん
+  const calcedPosM = (posM == null && lat != null && selectedId)
+    ? calcPosMFromLatLng(selectedId, lat, lng)
+    : posM;
+  document.getElementById('modal-title').textContent = 'こうもくをついか';
+  document.getElementById('modal-type').value = 'custom';
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-posm').value = calcedPosM != null ? Math.round(calcedPosM) : '';
+  document.getElementById('modal-note').value = '';
+  document.getElementById('modal-custom-icon').value = '';
+  document.getElementById('modal-custom-category').value = '';
+  document.getElementById('modal-existing-wrap').style.display = 'none';
+  document.getElementById('modal-display-label-wrap').style.display = 'none';
+  document.getElementById('modal-hidden-wrap').style.display = 'none';
+  document.getElementById('modal-name').closest('div').style.display = '';
+  document.getElementById('modal-posm').closest('div').style.display = '';
+  document.getElementById('modal-note').closest('div').style.display = '';
+  onModalTypeChange();
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+// モーダルをひらく（へんしゅう）
+function openEditModal(borderId, index) {
+  const item = (editData[String(borderId)] || [])[index];
+  if (!item) return;
+  modalEditIndex = index;
+  modalClickLatLng = item.lat != null ? {lat: item.lat, lng: item.lng} : null;
+  document.getElementById('modal-title').textContent = 'こうもくをへんしゅう';
+  document.getElementById('modal-type').value = item.editType || 'custom';
+  document.getElementById('modal-name').value = item.label || '';
+  document.getElementById('modal-posm').value = item.pos_m || '';
+  document.getElementById('modal-note').value = item.note || '';
+  document.getElementById('modal-custom-icon').value = item.icon || '';
+  if (item.textStyle) {
+    document.getElementById('modal-text-color').value = item.textStyle.color || '#000000';
+    document.getElementById('modal-text-stroke').value = item.textStyle.stroke || '#ffffff';
+    document.getElementById('modal-text-size').value = item.textStyle.size || '16px';
+    document.getElementById('modal-text-font').value = item.textStyle.font || 'sans-serif';
+  }
+  document.getElementById('modal-custom-category').value = item.category || '';
+  onModalTypeChange();
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+// きそんこうもく（peak・rail・station・road・muni）のへんしゅう
+let modalExistingItem = null; // へんしゅうちゅうのきそんこうもく
+
+function openExistingEditModal(item) {
+  modalExistingItem = item;
+  modalEditIndex = null;
+  const bid = String(selectedId);
+
+  // このこうもくのoverridesをさがす
+  const overrides = (editData[bid] || []).find(e => e.kind === 'override' && e.overrideKey === item.overrideKey);
+
+  document.getElementById('modal-title').textContent = 'ひょうじをへんこう';
+  document.getElementById('modal-type').value = 'custom';
+  document.getElementById('modal-custom-icon-wrap').style.display = 'none';
+  document.getElementById('modal-custom-category-wrap').style.display = 'none';
+  document.getElementById('modal-name').closest('div').style.display = 'none';
+  document.getElementById('modal-posm').closest('div').style.display = 'none';
+  document.getElementById('modal-note').closest('div').style.display = 'none';
+  document.getElementById('modal-existing-wrap').style.display = '';
+  document.getElementById('modal-display-label-wrap').style.display = '';
+  document.getElementById('modal-hidden-wrap').style.display = '';
+
+  // もとのデータをひょうじ
+  document.getElementById('modal-existing-info').textContent = `${item.icon || ''} ${item.originalLabel || item.label || item.name || ''}`;
+  document.getElementById('modal-display-label').value = overrides ? (overrides.displayLabel || '') : '';
+  document.getElementById('modal-hidden').checked = overrides ? (overrides.hidden || false) : false;
+
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+function saveExistingEditModal() {
+  if (!selectedId || !modalExistingItem) return;
+  const bid = String(selectedId);
+  if (!editData[bid]) editData[bid] = [];
+
+  const displayLabel = document.getElementById('modal-display-label').value.trim();
+  const hidden = document.getElementById('modal-hidden').checked;
+
+  // すでにoverridesがあればこうしん、なければついか
+  const existingIdx = editData[bid].findIndex(e => e.kind === 'override' && e.overrideKey === modalExistingItem.overrideKey);
+  const overrideItem = {
+    kind: 'override',
+    overrideKey: modalExistingItem.overrideKey,
+    displayLabel: displayLabel || null,
+    hidden,
+  };
+
+  if (existingIdx >= 0) {
+    editData[bid][existingIdx] = overrideItem;
+  } else {
+    editData[bid].push(overrideItem);
+  }
+
+  saveEditsToStorage();
+  closeEditModal();
+  const f = allFeatures.find(f=>f.properties.id===selectedId);
+  const colorMap = buildColorMap(selectedId);
+  renderTimeline(selectedId, f, colorMap);
+  renderCategory(selectedId, f, colorMap);
+  renderEditItems(selectedId);
+  if (peaksVisible) renderPeaks(selectedId);
+  if (railVisible || roadVisible || bridgeVisible || tunnelVisible || riverVisible || lakeVisible || damVisible || heritageVisible) renderAllIcons(selectedId);
+  consolidateIcons();
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').style.display = 'none';
+  // フォームをリセット
+  document.getElementById('modal-name').closest('div').style.display = '';
+  document.getElementById('modal-posm').closest('div').style.display = '';
+  document.getElementById('modal-note').closest('div').style.display = '';
+  document.getElementById('modal-existing-wrap').style.display = 'none';
+  document.getElementById('modal-display-label-wrap').style.display = 'none';
+  document.getElementById('modal-hidden-wrap').style.display = 'none';
+  modalClickLatLng = null;
+  modalExistingItem = null;
+}
+
+function onModalTypeChange() {
+  const type = document.getElementById('modal-type').value;
+  const isCustom = type === 'custom';
+  document.getElementById('modal-custom-icon-wrap').style.display = isCustom ? '' : 'none';
+  document.getElementById('modal-custom-category-wrap').style.display = isCustom ? '' : 'none';
+}
+
+const EDIT_TYPE_MAP = {
+  'peak':          { icon: '⛰️', category: '山岳',   kind: 'edit' },
+  'rail':          { icon: '🛤️', category: '鉄道',   kind: 'edit' },
+  'station':       { icon: '🚉', category: '鉄道',   kind: 'edit' },
+  'road_highway':  { icon: '🛣️高速', category: '道路', kind: 'edit' },
+  'road_national': { icon: '🛣️国道', category: '道路', kind: 'edit' },
+  'road_pref':     { icon: '🛣️県道', category: '道路', kind: 'edit' },
+};
+
+function saveEditModal() {
+  if (modalExistingItem) { saveExistingEditModal(); return; }
+  if (!selectedId) return;
+  const type = document.getElementById('modal-type').value;
+  const name = document.getElementById('modal-name').value.trim();
+  const posM = parseInt(document.getElementById('modal-posm').value) || 0;
+  const note = document.getElementById('modal-note').value.trim();
+
+  let icon, category, textStyle = null;
+  if (type === 'custom') {
+    icon = document.getElementById('modal-custom-icon').value.trim() || '📍';
+    category = document.getElementById('modal-custom-category').value.trim() || 'カスタム';
+    // もじスタイルをほぞん
+    textStyle = {
+      color: document.getElementById('modal-text-color').value,
+      stroke: document.getElementById('modal-text-stroke').value,
+      size: document.getElementById('modal-text-size').value,
+      font: document.getElementById('modal-text-font').value,
+    };
+  } else {
+    icon = EDIT_TYPE_MAP[type].icon;
+    category = EDIT_TYPE_MAP[type].category;
+  }
+
+  const item = {
+    kind: 'edit',
+    editType: type,
+    icon, label: name, category,
+    pos_m: posM,
+    lat: modalClickLatLng ? modalClickLatLng.lat : null,
+    lng: modalClickLatLng ? modalClickLatLng.lng : null,
+    note,
+    textStyle,
+  };
+
+  const bid = String(selectedId);
+  if (!editData[bid]) editData[bid] = [];
+
+  if (modalEditIndex !== null) {
+    editData[bid][modalEditIndex] = item;
+  } else {
+    editData[bid].push(item);
+  }
+
+  saveEditsToStorage();
+  closeEditModal();
+
+  const f = allFeatures.find(f=>f.properties.id===selectedId);
+  const colorMap = buildColorMap(selectedId);
+  renderTimeline(selectedId, f, colorMap);
+  renderCategory(selectedId, f, colorMap);
+  renderEditItems(selectedId);
+}
+
+// こうもくさくじょ
+function deleteEditItem(borderId, index) {
+  if (!confirm('このこうもくをさくじょしますカ？')) return;
+  const bid = String(borderId);
+  if (editData[bid]) {
+    editData[bid].splice(index, 1);
+    saveEditsToStorage();
+    const f = allFeatures.find(f=>f.properties.id===borderId);
+    const colorMap = buildColorMap(borderId);
+    renderTimeline(borderId, f, colorMap);
+    renderCategory(borderId, f, colorMap);
+    renderEditItems(borderId);
+  }
+}
+
+// タブきりかえ
+function switchTab(name) {
+  ['timeline','category'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('tab-content-' + t).classList.toggle('active', t === name);
+  });
+}
+
+// ========================================
+// リスト描画
+// ========================================
+function renderList(features) {
+  const list = document.getElementById('border-list');
+  list.innerHTML = '';
+
+  // allFeaturesとZERO_KM_LOCATIONSをあわせたリストをつくる
+  const zeroIds = Object.keys(ZERO_KM_LOCATIONS).map(Number);
+
+  // featureのidセット
+  const featureIds = new Set(features.map(f => f.properties.id));
+
+  // featureにないZERO_KM_LOCATIONSのこうもくをかおもちにする
+  const zeroItems = zeroIds
+    .filter(id => !featureIds.has(id))
+    .map(id => {
+      const loc = ZERO_KM_LOCATIONS[id];
+      return {
+        isZero: true,
+        id,
+        pref1: loc.pref1,
+        pref2: loc.pref2,
+        label: loc.label,
+        type: loc.type,
+      };
+    });
+
+  // featureとzeroItemsをidじゅんにあわせてひょうじ
+  const allItems = [
+    ...features.map(f => ({ isZero: false, ...f.properties })),
+    ...zeroItems,
+  ].sort((a, b) => a.id - b.id);
+
+  document.getElementById('count').textContent = allItems.length;
+
+  allItems.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'border-item';
+    div.dataset.id = item.id;
+
+    if (item.isZero) {
+      const typeIcon = { tunnel: '🚇', bridge: '🌉', ferry: '⛴️' }[item.type] || '🔗';
+      div.innerHTML = `
+        <div class="border-item-title">
+          <span style="display:inline-block;width:10px;height:10px;background:#666;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>
+          ${item.id}. ${item.pref1} × ${item.pref2}
+          <span class="type-badge" style="background:#444;color:#aaa;">${typeIcon}</span>
+        </div>
+        <div class="border-item-meta">0 km（${item.label}）</div>
+      `;
+      div.addEventListener('click', () => selectZeroBorder(item.id));
+    } else {
+      const color = getBorderColor(item.id, item.type);
+      div.innerHTML = `
+        <div class="border-item-title">
+          <span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:4px;vertical-align:middle;"></span>
+          ${item.id}. ${item.pref1} × ${item.pref2}
+          <span class="type-badge type-${item.type}">${TYPE_LABELS[item.type]||item.type}</span>
+        </div>
+        <div class="border-item-meta">
+          ${item.length_km > 0 ? item.length_km.toFixed(3) + ' km' : '0 km（直接接続なし）'}
+          ${item.note ? '　' + item.note : ''}
+        </div>
+      `;
+      div.addEventListener('click', () => selectBorder(item.id));
+    }
+    list.appendChild(div);
+  });
+}
+
+// 0kmケースのせんたく
+function selectZeroBorder(id) {
+  const loc = ZERO_KM_LOCATIONS[id];
+  if (!loc) return;
+  document.querySelectorAll('.border-item').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+  });
+  map.setView([loc.lat, loc.lng], loc.zoom);
+  L.popup()
+    .setLatLng([loc.lat, loc.lng])
+    .setContent(`<b>${loc.pref1} × ${loc.pref2}</b><br>${loc.label}`)
+    .openOn(map);
+
+  // 基本情報パネルひょうじ
+  document.getElementById('basic-info-panel').innerHTML = `
+    <h3>${loc.pref1} × ${loc.pref2}</h3>
+    <div class="detail-row"><span class="detail-label">番号</span><span class="detail-value">${id}</span></div>
+    <div class="detail-row"><span class="detail-label">長さ</span><span class="detail-value">0 km（直接接続なし）</span></div>
+    <div class="detail-row"><span class="detail-label">備考</span><span class="detail-value">${loc.label}</span></div>
+  `;
+  document.getElementById('tab-content-timeline').innerHTML = '<div style="color:#555;font-size:11px;">タイムランデータなし</div>';
+  document.getElementById('tab-content-category').innerHTML = '<div style="color:#555;font-size:11px;">タイムランデータなし</div>';
+}
+
+// ========================================
+// 鉄道
+// ========================================
+
+
+// ========================================
+// 地図描画
+// ========================================
+const LINE_STYLES = {
+  solid:   { dashArray: null },
+  dot:     { dashArray: '2, 6' },
+  dash:    { dashArray: '10, 6' },
+  dashdot: { dashArray: '12, 6, 3, 6, 3, 6' }
+};
+let currentLineStyle = 'solid';
+
+function setLineStyle(style, btn) {
+  currentLineStyle = style;
+  renderMap(allFeatures);
+  if (selectedId !== null) {
+    geojsonLayer.eachLayer(layer => {
+      if (layer.feature && layer.feature.properties.id === selectedId) {
+        layer.setStyle({ weight: 5, opacity: 1, color: getBorderColor(selectedId, layer.feature.properties.type), dashArray: LINE_STYLES[style].dashArray });
+      }
+    });
+  }
+}
+
+function setLineStyleFromSelect(style) {
+  setLineStyle(style, null);
+}
+
+function toggleRoad() {
+  roadVisible = document.getElementById('road-toggle-input').checked;
+  if (selectedId) { if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; } renderAllIcons(selectedId); }
+}
+
+function toggleBridge() {
+  bridgeVisible = document.getElementById('bridge-toggle-input').checked;
+  if (selectedId) { if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; } renderAllIcons(selectedId); }
+}
+
+function toggleTunnel() {
+  tunnelVisible = document.getElementById('tunnel-toggle-input').checked;
+  if (selectedId) { if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; } renderAllIcons(selectedId); }
+}
+
+function toggleRiver() {
+  riverVisible = document.getElementById('river-toggle-input').checked;
+  if (selectedId) {
+    if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+    renderAllIcons(selectedId);
+    renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
+  }
+}
+
+function toggleRiverSeg() {
+  riverSegVisible = document.getElementById('river-seg-toggle-input').checked;
+  if (selectedId) {
+    if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+    renderAllIcons(selectedId);
+    renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
+  }
+}
+
+function toggleLake() {
+  lakeVisible = document.getElementById('lake-toggle-input').checked;
+  if (selectedId) {
+    if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+    renderAllIcons(selectedId);
+    renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
+  }
+}
+
+function toggleDam() {
+  damVisible = document.getElementById('dam-toggle-input').checked;
+  if (selectedId) {
+    if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+    renderAllIcons(selectedId);
+    renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
+  }
+}
+
+function toggleHeritage() {
+  heritageVisible = document.getElementById('heritage-toggle-input').checked;
+  if (selectedId) {
+    if (iconGroupLayer) { map.removeLayer(iconGroupLayer); iconGroupLayer = null; }
+    renderAllIcons(selectedId);
+    renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
+  }
+}
+
+// したじレイヤ（てんせん・はせん・くさりせんのときだけひょうじ）
+let baseLayer = null;
+
+function renderMap(features) {
+  if (geojsonLayer) map.removeLayer(geojsonLayer);
+  if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
+
+  const dashArray = LINE_STYLES[currentLineStyle].dashArray;
+  const needBase = currentLineStyle !== 'solid';
+
+  const filteredFeatures = { type: 'FeatureCollection', features: features.filter(f => f.geometry) };
+
+  // したじのじっせん（しろ）をさきにひく
+  if (needBase) {
+    baseLayer = L.geoJSON(filteredFeatures, {
+      style: f => ({
+        color: '#ffffff',
+        weight: 5,
+        opacity: 1.0,
+        dashArray: null
+      }),
+      interactive: false
+    }).addTo(map);
+  }
+
+  // idをキにしたMapをつくってhover/clickをはやくする
+  const layerMap = {};
+
+  // うえにてんせん・はせん・くさりせんをかさねる
+  geojsonLayer = L.geoJSON(filteredFeatures, {
+    style: f => ({
+      color: getBorderColor(f.properties.id, f.properties.type),
+      weight: 2.5,
+      opacity: 0.85,
+      dashArray: dashArray
+    }),
+    onEachFeature: (f, layer) => {
+      layerMap[f.properties.id] = layer;
+      let clickTimer = null;
+      layer.on('click', (e) => {
+        clickTimer = setTimeout(() => selectBorder(f.properties.id), 250);
+      });
+      layer.on('dblclick', (e) => {
+        clearTimeout(clickTimer);
+        L.DomEvent.stopPropagation(e);
+        L.DomEvent.preventDefault(e);
+        if (!editMode) return;
+        if (selectedId !== f.properties.id) {
+          selectBorder(f.properties.id, true);
+          return;
+        }
+        const posM = calcPosMFromLatLng(f.properties.id, e.latlng.lat, e.latlng.lng);
+        openAddModal(posM, e.latlng.lat, e.latlng.lng);
+      });
+      layer.on('mouseover', () => layer.setStyle({ weight: 5, opacity: 1 }));
+      layer.on('mouseout', () => {
+        if (selectedId !== f.properties.id) layer.setStyle({ weight: 2.5, opacity: 0.85, dashArray });
+      });
+    }
+  }).addTo(map);
+
+  // ちずのどこでもダブルクリックでへんしゅうモーダル（へんしゅうモードONのとき）
+  map.on('dblclick', (e) => {
+    if (!editMode || !selectedId) return;
+    L.DomEvent.stopPropagation(e);
+    L.DomEvent.preventDefault(e);
+    const posM = calcPosMFromLatLng(selectedId, e.latlng.lat, e.latlng.lng);
+    openAddModal(posM, e.latlng.lat, e.latlng.lng);
+  });
+
+}
+
+// ========================================
+// 選択処理
+// ========================================
+function selectBorder(id, skipFitBounds = false) {
+  // モーダルがひらいてるときはfitBoundsしない
+  const modalOpen = document.getElementById('edit-modal').style.display === 'flex';
+  if (modalOpen) skipFitBounds = true;
+  selectedId = id;
+
+  document.querySelectorAll('.border-item').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+  });
+  const sel = document.querySelector(`.border-item[data-id="${id}"]`);
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+
+  const f = allFeatures.find(f => f.properties.id === id);
+  if (!f) return;
+  const p = f.properties;
+  const currentColor = getBorderColor(id, p.type);
+  const defaultColor = TYPE_COLORS[p.type] || '#5b9cf6';
+
+  document.getElementById('basic-info-panel').innerHTML = `
+    <h3>${p.pref1} × ${p.pref2}</h3>
+    <div class="detail-row"><span class="detail-label">番号</span><span class="detail-value">${p.id}</span></div>
+    <div class="detail-row"><span class="detail-label">長さ</span><span class="detail-value">${p.length_km > 0 ? p.length_km.toFixed(3) + ' km' : '0 km'}</span></div>
+    <div class="detail-row"><span class="detail-label">参考長さ</span><span class="detail-value">${p.ref_km != null ? p.ref_km + ' km' : 'なし'}</span></div>
+    <div class="detail-row"><span class="detail-label">種別</span><span class="detail-value">${TYPE_LABELS[p.type]||p.type}</span></div>
+    ${p.note ? `<div class="detail-row"><span class="detail-label">備考</span><span class="detail-value">${p.note}</span></div>` : ''}
+  `;
+
+  // 地図移動
+  if (!skipFitBounds) {
+    if (f.geometry) {
+      try { map.fitBounds(L.geoJSON(f).getBounds(), { padding: [40, 40] }); } catch(e) {}
+    } else {
+      const loc = ZERO_KM_LOCATIONS[id];
+      if (loc) {
+        map.setView([loc.lat, loc.lng], loc.zoom);
+        L.popup()
+          .setLatLng([loc.lat, loc.lng])
+          .setContent(`<b>${p.pref1} × ${p.pref2}</b><br>${loc.label}`)
+          .openOn(map);
+      }
+    }
+  }
+
+  // ヘッダーのカラーピッカーを現在の色に同期
+  const picker = document.getElementById('header-color-picker');
+  if (picker) picker.value = currentColor;
+  document.querySelectorAll('.palette-swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.title === currentColor);
+  });
+
+  renderMuni(id);
+  if (!muniVisible) renderLabelOnly(id);
+  renderMarkers(id);
+  if (peaksVisible) renderPeaks(id);
+  if (railVisible || roadVisible || bridgeVisible || tunnelVisible || riverVisible || lakeVisible || damVisible || heritageVisible) renderAllIcons(id);
+  consolidateIcons();
+  renderEditItems(id);
+
+  // タイムラン・しゅるいべつはmuniVisibleによらずひょうじ
+  const colorMap = {};
+  const p1c = {}, p2c = {};
+  const lengths = muniLengths[String(id)] || [];
+  lengths.forEach(m => {
+    const key = m.pref + '_' + m.name;
+    if (m.side === 'pref1') {
+      if (!(key in p1c)) p1c[key] = Object.keys(p1c).length;
+      colorMap[key] = getMuniColor('pref1', p1c[key]);
+    } else {
+      if (!(key in p2c)) p2c[key] = Object.keys(p2c).length;
+      colorMap[key] = getMuniColor('pref2', p2c[key]);
+    }
+  });
+  renderTimeline(id, f, colorMap);
+  renderCategory(id, f, colorMap);
+
+  geojsonLayer.eachLayer(layer => {
+    if (layer.feature && layer.feature.properties.id === id) {
+      layer.setStyle({ weight: 5, opacity: 1, color: getBorderColor(id, p.type), dashArray: LINE_STYLES[currentLineStyle].dashArray });
+    } else {
+      const lp = layer.feature.properties;
+      layer.setStyle({ weight: 2.5, opacity: 0.85, color: getBorderColor(lp.id, lp.type), dashArray: LINE_STYLES[currentLineStyle].dashArray });
+    }
+  });
+}
+
+// ========================================
+// カラー変更
+// ========================================
+function changeColor(id, color) {
+  customColors[id] = color;
+  saveColors();
+  // リスト の いろまる も こうしん
+  const item = document.querySelector(`.border-item[data-id="${id}"] span[style]`);
+  if (item) item.style.background = color;
+  // ちず も こうしん
+  geojsonLayer.eachLayer(layer => {
+    if (layer.feature && layer.feature.properties.id === id) {
+      layer.setStyle({ color });
+    }
+  });
+}
+
+// ========================================
+// パレット色
+// ========================================
+const PALETTE_COLORS = [
+  '#5b9cf6','#e07070','#d4a840','#60c8a0','#f08040',
+  '#70d0e0','#a0e060','#e060a0','#ffffff','#000000',
+  '#dc143c','#00008b','#666666','#cccccc'
+];
+
+function initPalette() {
+  const wrap = document.getElementById('palette-swatches');
+  if (!wrap) return;
+  wrap.style.display = 'flex';
+  wrap.style.gap = '3px';
+  PALETTE_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'palette-swatch';
+    sw.style.background = c;
+    sw.title = c;
+    sw.onclick = () => changeColorFromHeader(c);
+    wrap.appendChild(sw);
+  });
+}
+initPalette();
+
+function changeColorFromHeader(color) {
+  if (selectedId === null) return;
+  const f = allFeatures.find(f => f.properties.id === selectedId);
+  if (!f) return;
+  changeColor(selectedId, color);
+  // ピッカーの色も同期
+  const picker = document.getElementById('header-color-picker');
+  if (picker) picker.value = color;
+  // パレットのアクティブ表示
+  document.querySelectorAll('.palette-swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.style.background === hexToRgb(color) || sw.title === color);
+  });
+}
+
+function resetColorFromHeader() {
+  if (selectedId === null) return;
+  const f = allFeatures.find(f => f.properties.id === selectedId);
+  if (!f) return;
+  const defaultColor = TYPE_COLORS[f.properties.type] || '#5b9cf6';
+  delete customColors[selectedId];
+  saveColors();
+  changeColor(selectedId, defaultColor);
+  const picker = document.getElementById('header-color-picker');
+  if (picker) picker.value = defaultColor;
+  document.querySelectorAll('.palette-swatch').forEach(sw => sw.classList.remove('active'));
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function resetColor(id, defaultColor) {
+  delete customColors[id];
+  saveColors();
+  changeColor(id, defaultColor);
+}
+
+function resetAllColors() {
+  customColors = {};
+  saveColors();
+  renderMap(allFeatures);
+  renderList(allFeatures);
+  // いま えらんでる けんきょう の ピッカー も リセット
+  if (selectedId !== null) {
+    const f = allFeatures.find(f => f.properties.id === selectedId);
+    if (f) {
+      const defaultColor = TYPE_COLORS[f.properties.type] || '#5b9cf6';
+      const picker = document.getElementById('header-color-picker');
+      if (picker) picker.value = defaultColor;
+    }
+  }
+}
+// ========================================
+// スプリッター
+// ========================================
+const splitter = document.getElementById('splitter');
+const borderList = document.getElementById('border-list');
+const detailPanel = document.getElementById('detail-panel');
+const sidebar = document.getElementById('sidebar');
+
+splitter.addEventListener('mousedown', e => {
+  e.preventDefault();
+  const startY = e.clientY;
+  const startListH = borderList.getBoundingClientRect().height;
+  const startDetailH = detailPanel.getBoundingClientRect().height;
+  const total = startListH + startDetailH;
+
+  const onMove = e => {
+    const dy = e.clientY - startY;
+    const newListH = Math.max(60, Math.min(total - 60, startListH + dy));
+    const newDetailH = total - newListH;
+    borderList.style.flex = 'none';
+    borderList.style.height = newListH + 'px';
+    detailPanel.style.height = newDetailH + 'px';
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+</script>
+</body>
+</html>
