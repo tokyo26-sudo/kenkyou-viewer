@@ -403,12 +403,236 @@
     color: #dde1e7 !important;
   }
   .leaflet-popup-tip { background: #22242e !important; }
+
+  /* ========== すまほレイアウト ========== */
+  @media (max-width: 768px) {
+
+    body { height: 100dvh; overflow: hidden; }
+
+    /* ヘッダーはかくす */
+    #header { display: none; }
+
+    /* メインをたてならびに */
+    #main {
+      flex-direction: column;
+      height: 100dvh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ちずをうえにひろげる */
+    #map {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+    }
+
+    /* ⚙️ボタン */
+    #mobile-settings-btn {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 2000;
+      background: #22242e;
+      border: 1px solid #4a7ebb;
+      color: #aac4e8;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    /* せていパネル（ひだりからペロッ） */
+    #mobile-settings-panel {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: 300px;
+      height: 100dvh;
+      background: #22242e;
+      border-right: 2px solid #3a3d4a;
+      z-index: 3000;
+      overflow-y: auto;
+      transition: left 0.3s ease;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #mobile-settings-panel.open { left: 0; }
+
+    /* オーバーレイ */
+    #mobile-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2500;
+    }
+    #mobile-overlay.open { display: block; }
+
+    /* せていパネルのタイトル */
+    #mobile-settings-panel h2 {
+      font-size: 14px;
+      color: #7eb8f7;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #3a3d4a;
+      flex-shrink: 0;
+    }
+
+    /* せていパネルのトグルならび */
+    .mobile-toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .mobile-toggle-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 4px 0;
+    }
+    .mobile-toggle-item label { font-size: 12px; color: #aac4e8; }
+
+    /* せていパネルのボタンたち */
+    .mobile-action-btn {
+      background: #2e3140;
+      border: 1px solid #4a7ebb;
+      color: #aac4e8;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+      width: 100%;
+    }
+    .mobile-section-title {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+      border-bottom: 1px solid #3a3d4a;
+      padding-bottom: 4px;
+    }
+
+    /* したのひきだしパネル */
+    #sidebar {
+      width: 100%;
+      height: 140px;
+      min-height: 60px;
+      max-height: 80dvh;
+      border-right: none;
+      border-top: 2px solid #4a7ebb;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: height 0.2s;
+      position: relative;
+    }
+
+    /* ひきだしハンドル */
+    #sidebar::before {
+      content: '';
+      display: block;
+      width: 40px;
+      height: 4px;
+      background: #4a7ebb;
+      border-radius: 2px;
+      margin: 6px auto 2px;
+      flex-shrink: 0;
+      cursor: ns-resize;
+    }
+
+    #sidebar-header {
+      padding: 4px 12px 6px;
+      font-size: 12px;
+    }
+
+    #border-list { min-height: 40px; }
+
+    /* スプリッターはすまほではかくす */
+    #splitter { display: none; }
+  }
+
 </style>
 </head>
 <body>
 
+<!-- すまほようUI -->
+<button id="mobile-settings-btn" onclick="toggleMobileSettings()">⚙️</button>
+<div id="mobile-overlay" onclick="closeMobileSettings()"></div>
+<div id="mobile-settings-panel">
+  <h2>⚙️ せってい</h2>
+
+  <div class="mobile-section-title">レイヤー</div>
+  <div class="mobile-toggle-grid">
+    <div class="mobile-toggle-item">
+      <label>市区町村</label>
+      <label class="toggle-switch"><input type="checkbox" id="muni-toggle-input2" onchange="document.getElementById('muni-toggle-input').checked=this.checked;toggleMuni()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>自治体名</label>
+      <label class="toggle-switch"><input type="checkbox" id="label-toggle-input2" onchange="document.getElementById('label-toggle-input').checked=this.checked;toggleLabel()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>山岳</label>
+      <label class="toggle-switch"><input type="checkbox" id="peaks-toggle-input2" onchange="document.getElementById('peaks-toggle-input').checked=this.checked;togglePeaks()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>鉄道</label>
+      <label class="toggle-switch"><input type="checkbox" id="rail-toggle-input2" onchange="document.getElementById('rail-toggle-input').checked=this.checked;toggleRail()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>道路</label>
+      <label class="toggle-switch"><input type="checkbox" id="road-toggle-input2" onchange="document.getElementById('road-toggle-input').checked=this.checked;toggleRoad()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>橋梁</label>
+      <label class="toggle-switch"><input type="checkbox" id="bridge-toggle-input2" onchange="document.getElementById('bridge-toggle-input').checked=this.checked;toggleBridge()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>トンネル</label>
+      <label class="toggle-switch"><input type="checkbox" id="tunnel-toggle-input2" onchange="document.getElementById('tunnel-toggle-input').checked=this.checked;toggleTunnel()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>河川</label>
+      <label class="toggle-switch"><input type="checkbox" id="river-toggle-input2" onchange="document.getElementById('river-toggle-input').checked=this.checked;toggleRiver()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>区間</label>
+      <label class="toggle-switch"><input type="checkbox" id="river-seg-toggle-input2" onchange="document.getElementById('river-seg-toggle-input').checked=this.checked;toggleRiverSeg()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>湖沼</label>
+      <label class="toggle-switch"><input type="checkbox" id="lake-toggle-input2" onchange="document.getElementById('lake-toggle-input').checked=this.checked;toggleLake()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>ダム</label>
+      <label class="toggle-switch"><input type="checkbox" id="dam-toggle-input2" onchange="document.getElementById('dam-toggle-input').checked=this.checked;toggleDam()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>世界遺産</label>
+      <label class="toggle-switch"><input type="checkbox" id="heritage-toggle-input2" onchange="document.getElementById('heritage-toggle-input').checked=this.checked;toggleHeritage()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>始終点</label>
+      <label class="toggle-switch"><input type="checkbox" id="marker-toggle-input2" onchange="document.getElementById('marker-toggle-input').checked=this.checked;toggleMarker()"><span class="toggle-slider"></span></label>
+    </div>
+  </div>
+
+  <div class="mobile-section-title">ツール</div>
+  <button class="mobile-action-btn" onclick="toggleEditMode();closeMobileSettings()">✏️ へんしゅうモード</button>
+  <button class="mobile-action-btn" onclick="exportTimelineCSV()">📊 CSV</button>
+  <button class="mobile-action-btn" onclick="exportTimelineText()">📝 テキスト</button>
+</div>
+
+
 <div id="header">
-  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.7</span></h1>
+  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.8</span></h1>
   <span class="sep">|</span>
   <div class="slider-wrap">
     地図の濃さ
@@ -559,6 +783,50 @@
 
 <script>
 <!-- モーダル -->
+
+// ========== すまほ⚙️パネル ==========
+function toggleMobileSettings() {
+  document.getElementById('mobile-settings-panel').classList.toggle('open');
+  document.getElementById('mobile-overlay').classList.toggle('open');
+}
+function closeMobileSettings() {
+  document.getElementById('mobile-settings-panel').classList.remove('open');
+  document.getElementById('mobile-overlay').classList.remove('open');
+}
+
+// ========== すまほひきだしパネル ==========
+(function() {
+  const isMobile = () => window.innerWidth <= 768;
+  let startY = 0, startH = 0, dragging = false;
+
+  function initSwipe() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    sidebar.addEventListener('touchstart', e => {
+      if (!isMobile()) return;
+      const touch = e.touches[0];
+      // ハンドル部分（上から20px）だけでひきだし
+      const rect = sidebar.getBoundingClientRect();
+      if (touch.clientY - rect.top > 30) return;
+      startY = touch.clientY;
+      startH = sidebar.offsetHeight;
+      dragging = true;
+    }, { passive: true });
+
+    sidebar.addEventListener('touchmove', e => {
+      if (!dragging || !isMobile()) return;
+      const dy = startY - e.touches[0].clientY;
+      const newH = Math.min(Math.max(startH + dy, 60), window.innerHeight * 0.8);
+      sidebar.style.height = newH + 'px';
+    }, { passive: true });
+
+    sidebar.addEventListener('touchend', () => { dragging = false; });
+  }
+
+  document.addEventListener('DOMContentLoaded', initSwipe);
+})();
+
 </script>
 <div id="edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#22242e;border:1px solid #4a7ebb;border-radius:8px;padding:24px;min-width:320px;max-width:400px;color:#bbb;font-size:13px;">
