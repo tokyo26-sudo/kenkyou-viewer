@@ -628,6 +628,15 @@
       <label class="toggle-switch"><input type="checkbox" id="heritage-toggle-input2" onchange="document.getElementById('heritage-toggle-input').checked=this.checked;toggleHeritage()"><span class="toggle-slider"></span></label>
     </div>
     <div class="mobile-toggle-item">
+      <label>流域</label>
+      <label class="toggle-switch"><input type="checkbox" id="ryuiki-toggle-input2" onchange="document.getElementById('ryuiki-toggle-input').checked=this.checked;toggleRyuiki()"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="mobile-toggle-item">
+      <label>流域の濃さ <span id="ryuiki-opacity-label2" style="font-size:10px;color:#888;"></span></label>
+      <input type="range" min="0" max="80" value="25" style="width:120px;"
+        oninput="document.getElementById('ryuiki-opacity-slider').value=this.value;setRyuikiOpacity(this.value);var l=document.getElementById('ryuiki-opacity-label2');if(l)l.textContent=this.value+'%';">
+    </div>
+    <div class="mobile-toggle-item">
       <label>始終点</label>
       <label class="toggle-switch"><input type="checkbox" id="marker-toggle-input2" onchange="document.getElementById('marker-toggle-input').checked=this.checked;toggleMarker()"><span class="toggle-slider"></span></label>
     </div>
@@ -641,7 +650,7 @@
 
 
 <div id="header">
-  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.3.9</span></h1>
+  <h1>🗾 県境ビューワー <span style="font-size:10px;color:#555;font-weight:normal;">v1.4.0</span></h1>
   <span class="sep">|</span>
   <div class="slider-wrap">
     地図の濃さ
@@ -732,6 +741,18 @@
       <input type="checkbox" id="heritage-toggle-input" onchange="toggleHeritage()">
       <span class="toggle-slider"></span>
     </label>
+  </div>
+  <div class="toggle-wrap">
+    <label for="ryuiki-toggle-input">流域</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="ryuiki-toggle-input" onchange="toggleRyuiki()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="slider-wrap">
+    濃さ <span id="ryuiki-opacity-label" style="font-size:10px;color:#888;">25%</span>
+    <input type="range" id="ryuiki-opacity-slider" min="0" max="80" value="25"
+      oninput="setRyuikiOpacity(this.value)">
   </div>
   <div class="toggle-wrap">
     <label for="marker-toggle-input">始終点</label>
@@ -941,7 +962,12 @@ const TILES = {
   pale:  { url: 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png',          attr: '国土地理院' }
 };
 
-const map = L.map('map', { center: [36.5, 137.0], zoom: 6, clickTolerance: 10 });
+const map = L.map('map', { center: [36.5, 137.0], zoom: 6, clickTolerance: 10, preferCanvas: true });
+
+// りゅういき（ぶんすいれい）レイヤー用のpane。タイル(200)と県境(400)のあいだ＝県境のした
+map.createPane('ryuikiPane');
+map.getPane('ryuikiPane').style.zIndex = 250;
+const ryuikiRenderer = L.canvas({ pane: 'ryuikiPane' });
 
 const tileLayers = {
   '淡色地図': L.tileLayer(TILES.pale.url,  { attribution: TILES.pale.attr,  maxZoom: 18 }),
@@ -1024,6 +1050,8 @@ let riverData = {}, riverVisible = false, riverSegVisible = false;
 let lakeData = {}, lakeVisible = false;
 let damData = {}, damVisible = false;
 let heritageData = {}, heritageVisible = false;
+// りゅういき（流域・分水嶺）レイヤー（全国モード）
+let ryuikiLayer = null, ryuikiVisible = false, ryuikiData = null, ryuikiOpacity = 0.25;
 const WHC_NATURE_NAMES = {
   '01': '屋久島',
   '02': '白神山地',
@@ -3074,6 +3102,79 @@ function toggleHeritage() {
     renderTimeline(selectedId, allFeatures.find(f => f.properties.id === selectedId), buildColorMap(selectedId));
   }
 }
+
+// ========================================
+// りゅういき（流域・分水嶺）レイヤー　全国モード
+// ========================================
+// 水系コード(W12_002)から、となりどうしがかぶりにくい色をつくる
+function ryuikiColor(code) {
+  const s = String(code || '0');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffffff;
+  const hue = Math.abs(h) % 360;
+  const sat = 55 + (Math.abs(h >> 4) % 25);   // 55〜80%
+  const lig = 55 + (Math.abs(h >> 8) % 15);   // 55〜70%
+  return `hsl(${hue}, ${sat}%, ${lig}%)`;
+}
+
+function drawRyuiki() {
+  if (ryuikiLayer) { map.removeLayer(ryuikiLayer); ryuikiLayer = null; }
+  if (!ryuikiVisible || !ryuikiData) return;
+  ryuikiLayer = L.geoJSON(ryuikiData, {
+    pane: 'ryuikiPane',
+    renderer: ryuikiRenderer,
+    interactive: false,
+    style: f => ({
+      color: ryuikiColor(f.properties.W12_002),
+      weight: 0.5,
+      opacity: Math.min(1, ryuikiOpacity + 0.15),
+      fillColor: ryuikiColor(f.properties.W12_002),
+      fillOpacity: ryuikiOpacity
+    })
+  }).addTo(map);
+}
+
+function toggleRyuiki() {
+  ryuikiVisible = document.getElementById('ryuiki-toggle-input').checked;
+  // モバイル側トグルも同期
+  const m = document.getElementById('ryuiki-toggle-input2');
+  if (m) m.checked = ryuikiVisible;
+
+  if (ryuikiVisible && !ryuikiData) {
+    // おそよみ：はじめてONにしたときだけDL
+    const st = document.getElementById('status');
+    if (st) st.textContent = '流域データ よみこみちゅう…';
+    fetch('kenkyou_ryuiki_zenkoku.geojson')
+      .then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+      .then(data => {
+        ryuikiData = data;
+        if (st) st.textContent = `流域 ${data.features.length}件 よみこみ完了`;
+        drawRyuiki();
+      })
+      .catch(() => {
+        if (st) st.textContent = '流域データ よみこめませんでした';
+        console.warn('kenkyou_ryuiki_zenkoku.geojson よみこめませんでした');
+      });
+  } else {
+    drawRyuiki();
+  }
+}
+
+function setRyuikiOpacity(val) {
+  ryuikiOpacity = val / 100;
+  const lbl = document.getElementById('ryuiki-opacity-label');
+  if (lbl) lbl.textContent = val + '%';
+  if (ryuikiLayer) {
+    ryuikiLayer.setStyle(f => ({
+      color: ryuikiColor(f.properties.W12_002),
+      weight: 0.5,
+      opacity: Math.min(1, ryuikiOpacity + 0.15),
+      fillColor: ryuikiColor(f.properties.W12_002),
+      fillOpacity: ryuikiOpacity
+    }));
+  }
+}
+
 
 // したじレイヤ（てんせん・はせん・くさりせんのときだけひょうじ）
 let baseLayer = null;
